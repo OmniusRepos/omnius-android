@@ -437,4 +437,118 @@ object TorrentStreamManager {
         } catch (_: Exception) {}
         sessionManager = null
     }
+
+    // --- Live tracker scrape (BEP 15 UDP protocol) ---
+
+    data class ScrapeStats(val seeders: Int, val leechers: Int)
+
+    /**
+     * Scrape live seed/peer counts for multiple torrent hashes via UDP trackers.
+     * Returns a map of hash → ScrapeStats. Must be called from a coroutine (IO dispatcher).
+     */
+    suspend fun scrapePeers(hashes: List<String>): Map<String, ScrapeStats> {
+        return withContext(Dispatchers.IO) {
+            val results = java.util.concurrent.ConcurrentHashMap<String, ScrapeStats>()
+            val jobs = hashes.map { hash ->
+                async {
+                    try {
+                        val stats = scrapeFromTrackers(hash)
+                        if (stats != null) results[hash] = stats
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Scrape failed for $hash: ${e.message}")
+                    }
+                }
+            }
+            jobs.forEach { it.await() }
+            results.toMap()
+        }
+    }
+
+    private fun scrapeFromTrackers(hash: String): ScrapeStats? {
+        val infoHash = try {
+            hexToBytes(hash)
+        } catch (_: Exception) { return null }
+        if (infoHash.size != 20) return null
+
+        for (tracker in TRACKERS) {
+            try {
+                val hostPort = tracker
+                    .removePrefix("udp://")
+                    .removeSuffix("/announce")
+                val stats = udpScrape(hostPort, infoHash)
+                if (stats != null) return stats
+            } catch (_: Exception) { }
+        }
+        return null
+    }
+
+    private fun udpScrape(hostPort: String, infoHash: ByteArray): ScrapeStats? {
+        val socket = java.net.DatagramSocket()
+        socket.soTimeout = 3000
+        try {
+            val parts = hostPort.split(":")
+            val host = parts[0]
+            val port = parts.getOrNull(1)?.toIntOrNull() ?: return null
+            val addr = java.net.InetAddress.getByName(host)
+
+            // Step 1: Connect
+            val txId = (Math.random() * Int.MAX_VALUE).toInt()
+            val connectReq = java.nio.ByteBuffer.allocate(16)
+            connectReq.putLong(0x41727101980L) // magic
+            connectReq.putInt(0)               // action: connect
+            connectReq.putInt(txId)
+            val connectPacket = java.net.DatagramPacket(connectReq.array(), 16, addr, port)
+            socket.send(connectPacket)
+
+            val respBuf = ByteArray(16)
+            val respPacket = java.net.DatagramPacket(respBuf, 16)
+            socket.receive(respPacket)
+
+            val resp = java.nio.ByteBuffer.wrap(respBuf)
+            val action = resp.int
+            val respTxId = resp.int
+            val connectionId = resp.long
+            if (action != 0 || respTxId != txId) return null
+
+            // Step 2: Scrape
+            val txId2 = (Math.random() * Int.MAX_VALUE).toInt()
+            val scrapeReq = java.nio.ByteBuffer.allocate(36)
+            scrapeReq.putLong(connectionId)
+            scrapeReq.putInt(2)        // action: scrape
+            scrapeReq.putInt(txId2)
+            scrapeReq.put(infoHash)
+            val scrapePacket = java.net.DatagramPacket(scrapeReq.array(), 36, addr, port)
+            socket.send(scrapePacket)
+
+            val scrapeBuf = ByteArray(20)
+            val scrapeRespPacket = java.net.DatagramPacket(scrapeBuf, 20)
+            socket.receive(scrapeRespPacket)
+
+            val scrapeResp = java.nio.ByteBuffer.wrap(scrapeBuf)
+            val scrapeAction = scrapeResp.int
+            val scrapeTxId = scrapeResp.int
+            if (scrapeAction != 2 || scrapeTxId != txId2) return null
+
+            val seeders = scrapeResp.int
+            scrapeResp.int // completed — skip
+            val leechers = scrapeResp.int
+
+            return ScrapeStats(seeders, leechers)
+        } catch (_: Exception) {
+            return null
+        } finally {
+            socket.close()
+        }
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        val len = hex.length
+        val data = ByteArray(len / 2)
+        var i = 0
+        while (i < len) {
+            data[i / 2] = ((Character.digit(hex[i], 16) shl 4) + Character.digit(hex[i + 1], 16)).toByte()
+            i += 2
+        }
+        return data
+    }
 }

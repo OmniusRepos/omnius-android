@@ -7,6 +7,7 @@ import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.FileDataSource
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.min
@@ -80,12 +81,23 @@ class TorrentDataSource : BaseDataSource(false) {
      * Routes file:// URIs to TorrentDataSource, http(s):// to DefaultHttpDataSource.
      * This lets sidecar subtitle HTTP URLs work alongside torrent file playback.
      */
+    /**
+     * Routes URIs to the correct DataSource:
+     * - The torrent video file → TorrentDataSource (piece-aware blocking reads)
+     * - Other local files (subtitles) → FileDataSource (direct file read)
+     * - HTTP URLs (API subtitles) → DefaultHttpDataSource
+     */
     @UnstableApi
     class Factory : DataSource.Factory {
         private val httpFactory = DefaultHttpDataSource.Factory()
+        private val fileFactory = FileDataSource.Factory()
 
         override fun createDataSource(): DataSource {
-            return RoutingDataSource(TorrentDataSource(), httpFactory.createDataSource())
+            return RoutingDataSource(
+                TorrentDataSource(),
+                httpFactory.createDataSource(),
+                fileFactory.createDataSource(),
+            )
         }
     }
 
@@ -93,13 +105,24 @@ class TorrentDataSource : BaseDataSource(false) {
     private class RoutingDataSource(
         private val torrentSource: TorrentDataSource,
         private val httpSource: DataSource,
+        private val fileSource: DataSource,
     ) : DataSource {
         private var activeSource: DataSource? = null
 
         override fun open(dataSpec: DataSpec): Long {
             val scheme = dataSpec.uri.scheme?.lowercase()
-            activeSource = if (scheme == "http" || scheme == "https") httpSource else torrentSource
+            activeSource = when {
+                scheme == "http" || scheme == "https" -> httpSource
+                isVideoFile(dataSpec.uri) -> torrentSource
+                else -> fileSource  // subtitle .srt/.ass files etc.
+            }
             return activeSource!!.open(dataSpec)
+        }
+
+        private fun isVideoFile(uri: Uri): Boolean {
+            val path = uri.path ?: return false
+            val streamPath = TorrentStreamManager.state.value.streamUrl ?: return false
+            return path == streamPath
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
@@ -116,6 +139,7 @@ class TorrentDataSource : BaseDataSource(false) {
         override fun addTransferListener(transferListener: androidx.media3.datasource.TransferListener) {
             torrentSource.addTransferListener(transferListener)
             httpSource.addTransferListener(transferListener)
+            fileSource.addTransferListener(transferListener)
         }
     }
 }

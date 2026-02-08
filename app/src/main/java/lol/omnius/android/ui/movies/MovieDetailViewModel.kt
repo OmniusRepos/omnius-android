@@ -21,6 +21,9 @@ data class MovieDetailState(
     // Streaming (from TorrentStreamManager)
     val selectedHash: String? = null,
     val torrentState: TorrentStreamState = TorrentStreamState(),
+    // Live seed/peer counts from tracker scrape
+    val liveStats: Map<String, TorrentStreamManager.ScrapeStats> = emptyMap(),
+    val liveStatsLoading: Boolean = false,
 )
 
 class MovieDetailViewModel : ViewModel() {
@@ -62,6 +65,22 @@ class MovieDetailViewModel : ViewModel() {
                             suggestions = suggestions.data?.movies ?: emptyList(),
                         )
                     } catch (_: Exception) {}
+                }
+                // Scrape live seed/peer counts from trackers
+                launch {
+                    val hashes = response.data?.movie?.torrents?.map { it.hash } ?: emptyList()
+                    if (hashes.isNotEmpty()) {
+                        _state.value = _state.value.copy(liveStatsLoading = true)
+                        try {
+                            val stats = TorrentStreamManager.scrapePeers(hashes)
+                            _state.value = _state.value.copy(
+                                liveStats = stats,
+                                liveStatsLoading = false,
+                            )
+                        } catch (_: Exception) {
+                            _state.value = _state.value.copy(liveStatsLoading = false)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 _state.value = MovieDetailState(

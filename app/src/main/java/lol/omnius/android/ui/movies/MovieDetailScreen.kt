@@ -291,8 +291,13 @@ fun MovieDetailScreen(
                                     color = if (isSelected) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.7f),
                                     fontSize = 11.sp,
                                 )
+                                val live = state.liveStats[torrent.hash]
+                                val seeds = live?.seeders ?: torrent.seeds
+                                val leechers = live?.leechers ?: torrent.peers
                                 Text(
-                                    text = "${torrent.seeds} seeds \u2022 ${torrent.peers} peers",
+                                    text = if (live != null) "$seeds seeds \u2022 $leechers peers \u2022 live"
+                                           else if (state.liveStatsLoading) "${torrent.seeds} seeds \u2022 ..."
+                                           else "${torrent.seeds} seeds \u2022 ${torrent.peers} peers",
                                     color = if (isSelected) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.5f),
                                     fontSize = 10.sp,
                                 )
