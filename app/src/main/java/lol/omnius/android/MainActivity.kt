@@ -8,9 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import lol.omnius.android.ui.components.Sidebar
@@ -37,37 +34,24 @@ fun MainScreen() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    var sidebarExpanded by remember { mutableStateOf(false) }
-    val sidebarFocusRequester = remember { FocusRequester() }
-
     Row(
         modifier = Modifier
             .fillMaxSize()
             .background(OmniusDark),
     ) {
-        // Sidebar — expands on focus
-        Box(
-            modifier = Modifier
-                .focusRequester(sidebarFocusRequester)
-                .onFocusChanged { focusState ->
-                    sidebarExpanded = focusState.hasFocus || focusState.isFocused
-                },
-        ) {
-            Sidebar(
-                currentRoute = currentRoute,
-                expanded = sidebarExpanded,
-                onItemClick = { item ->
-                    if (currentRoute != item.route) {
-                        navController.navigate(item.route) {
-                            // Pop up to home so back works: detail -> browse -> home
-                            popUpTo(SidebarItem.HOME.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+        // Sidebar — always collapsed (icons only)
+        Sidebar(
+            currentRoute = currentRoute,
+            expanded = false,
+            onItemClick = { item ->
+                navController.navigate(item.route) {
+                    popUpTo(SidebarItem.HOME.route) {
+                        inclusive = (item == SidebarItem.HOME)
                     }
-                },
-            )
-        }
+                    launchSingleTop = true
+                }
+            },
+        )
 
         // Content area
         Box(

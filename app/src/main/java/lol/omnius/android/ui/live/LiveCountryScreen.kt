@@ -1,11 +1,14 @@
 package lol.omnius.android.ui.live
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -116,11 +119,20 @@ fun LiveCountryScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 items(channels, key = { it.id }) { channel ->
+                    var channelFocused by remember { mutableStateOf(false) }
+                    val channelShape = RoundedCornerShape(8.dp)
                     Surface(
                         onClick = {
                             channel.streamUrl?.let { url -> onChannelPlay(channel.name, url) }
                         },
-                        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                        modifier = Modifier
+                            .onFocusChanged { channelFocused = it.isFocused }
+                            .then(
+                                if (channelFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), channelShape)
+                                else Modifier
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(shape = channelShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = OmniusSurface,
                             focusedContainerColor = OmniusCard,

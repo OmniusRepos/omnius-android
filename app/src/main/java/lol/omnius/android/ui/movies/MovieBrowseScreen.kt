@@ -1,10 +1,13 @@
 package lol.omnius.android.ui.movies
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -100,9 +103,18 @@ fun GenreChip(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    var chipFocused by remember { mutableStateOf(false) }
+    val chipShape = RoundedCornerShape(8.dp)
     Surface(
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        modifier = Modifier
+            .onFocusChanged { chipFocused = it.isFocused }
+            .then(
+                if (chipFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), chipShape)
+                else Modifier
+            ),
+        shape = ClickableSurfaceDefaults.shape(shape = chipShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) OmniusRed else OmniusSurface,
             focusedContainerColor = if (selected) OmniusRed else Color(0xFF333333),

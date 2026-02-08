@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -46,12 +45,11 @@ fun ContentCard(
             .width(width)
             .onFocusChanged { isFocused = it.isFocused }
             .then(
-                if (isFocused) Modifier
-                    .scale(1.05f)
-                    .border(BorderStroke(2.dp, OmniusRed), shape)
+                if (isFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), shape)
                 else Modifier
             ),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = OmniusCard,
             focusedContainerColor = OmniusCard,

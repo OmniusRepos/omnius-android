@@ -280,51 +280,6 @@ data class ChannelCategoriesData(
     val categories: List<ChannelCategory> = emptyList(),
 )
 
-// --- Streaming ---
-
-// Stream start response: { status, data: { stream_url, file_name, total_size, file_index } }
-@Serializable
-data class StreamStartResponse(
-    val status: String = "",
-    val data: StreamInfo? = null,
-)
-
-@Serializable
-data class StreamInfo(
-    @SerialName("info_hash") val infoHash: String = "",
-    @SerialName("stream_url") val streamUrl: String = "",
-    @SerialName("file_name") val fileName: String = "",
-    @SerialName("total_size") val totalSize: Long = 0,
-    @SerialName("file_index") val fileIndex: Int = 0,
-)
-
-// Stream status response: { status, data: { downloaded, total_size, download_speed, peers, progress } }
-@Serializable
-data class StreamStatusResponse(
-    val status: String = "",
-    val data: StreamStats? = null,
-)
-
-@Serializable
-data class StreamStats(
-    val downloaded: Long = 0,
-    @SerialName("total_size") val totalSize: Long = 0,
-    @SerialName("download_speed") val downloadSpeed: Long = 0,
-    val peers: Int = 0,
-    val progress: Double = 0.0, // 0-100 percentage
-)
-
-@Serializable
-data class StreamStartRequest(
-    val hash: String,
-    @SerialName("file_index") val fileIndex: Int? = null,
-)
-
-@Serializable
-data class StreamStopRequest(
-    val hash: String,
-)
-
 // --- Subtitles ---
 
 @Serializable

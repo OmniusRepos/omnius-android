@@ -24,11 +24,12 @@ import lol.omnius.android.ui.player.PlayerActivity
 fun AppNavGraph(navController: NavHostController) {
     val context = LocalContext.current
 
-    fun launchPlayer(title: String, streamUrl: String, imdbCode: String = "") {
+    fun launchPlayer(title: String, streamUrl: String, imdbCode: String = "", isTorrent: Boolean = false) {
         val intent = Intent(context, PlayerActivity::class.java).apply {
             putExtra("title", title)
             putExtra("stream_url", streamUrl)
             putExtra("imdb_code", imdbCode)
+            putExtra("is_torrent", isTorrent)
         }
         context.startActivity(intent)
     }
@@ -58,7 +59,8 @@ fun AppNavGraph(navController: NavHostController) {
             MovieDetailScreen(
                 movieId = movieId,
                 onBack = { navController.popBackStack() },
-                onPlay = { title, streamUrl, imdbCode -> launchPlayer(title, streamUrl, imdbCode) },
+                onPlay = { title, streamUrl, imdbCode, isTorrent -> launchPlayer(title, streamUrl, imdbCode, isTorrent) },
+                onMovieClick = { navController.navigate(NavRoutes.movieDetail(it)) },
             )
         }
 
@@ -76,7 +78,7 @@ fun AppNavGraph(navController: NavHostController) {
             SeriesDetailScreen(
                 seriesId = seriesId,
                 onBack = { navController.popBackStack() },
-                onPlay = { title, streamUrl, imdbCode -> launchPlayer(title, streamUrl, imdbCode) },
+                onPlay = { title, streamUrl, imdbCode, isTorrent -> launchPlayer(title, streamUrl, imdbCode, isTorrent) },
             )
         }
 

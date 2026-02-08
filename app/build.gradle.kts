@@ -78,6 +78,10 @@ dependencies {
     // DataStore for preferences
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // Torrent (P2P)
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-38")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-38")
+
     // Core
     implementation("androidx.core:core-ktx:1.15.0")
 }

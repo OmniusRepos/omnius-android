@@ -1,6 +1,8 @@
 package lol.omnius.android.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -58,8 +60,10 @@ fun Sidebar(
         }
 
         SidebarItem.entries.forEach { item ->
-            val isActive = currentRoute?.startsWith(item.route) == true ||
-                (item == SidebarItem.HOME && currentRoute == NavRoutes_HOME)
+            // Exact match for top-level, prefix match for detail pages
+            // e.g. "movies/{movieId}" starts with "movies", "live/country/{code}" starts with "live"
+            val isActive = currentRoute == item.route ||
+                (currentRoute != null && currentRoute.startsWith(item.route + "/"))
 
             SidebarNavItem(
                 item = item,
@@ -70,8 +74,6 @@ fun Sidebar(
         }
     }
 }
-
-private const val NavRoutes_HOME = "home"
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -94,13 +96,19 @@ private fun SidebarNavItem(
         else -> OmniusTextSecondary
     }
 
+    val navShape = RoundedCornerShape(8.dp)
     Surface(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
-            .onFocusChanged { isFocused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), navShape)
+                else Modifier
+            ),
+        shape = ClickableSurfaceDefaults.shape(shape = navShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = bgColor,
             focusedContainerColor = Color.White.copy(alpha = 0.15f),

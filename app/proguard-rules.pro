@@ -1,3 +1,7 @@
+# libtorrent4j
+-keep class org.libtorrent4j.** { *; }
+-keepclassmembers class org.libtorrent4j.** { *; }
+
 # Retrofit
 -keepattributes Signature
 -keepattributes *Annotation*

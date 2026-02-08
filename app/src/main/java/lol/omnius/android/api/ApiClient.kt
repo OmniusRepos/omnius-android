@@ -57,10 +57,6 @@ object ApiClient {
 
     fun getBaseUrl(): String = baseUrl
 
-    fun streamUrl(hash: String, fileIndex: Int = 0): String {
-        return "${baseUrl}stream/$hash/$fileIndex"
-    }
-
     fun subtitleDownloadUrl(downloadUrl: String): String {
         return "${baseUrl}api/v2/subtitles/download?url=${java.net.URLEncoder.encode(downloadUrl, "UTF-8")}"
     }

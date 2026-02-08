@@ -2,7 +2,9 @@ package lol.omnius.android.ui.home
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import kotlinx.coroutines.launch
 import lol.omnius.android.data.model.HomeMovieHero
 import lol.omnius.android.ui.components.SeriesRow
 import lol.omnius.android.ui.components.SlimMovieRow
+import lol.omnius.android.ui.components.Top10Row
 import lol.omnius.android.ui.theme.*
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -50,10 +53,19 @@ fun HomeScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(state.error ?: "Error", color = OmniusRed, fontSize = 14.sp)
                 Spacer(Modifier.height(16.dp))
+                var retryFocused by remember { mutableStateOf(false) }
+                val retryShape = RoundedCornerShape(8.dp)
                 Surface(
                     onClick = { viewModel.retry() },
+                    modifier = Modifier
+                        .onFocusChanged { retryFocused = it.isFocused }
+                        .then(
+                            if (retryFocused) Modifier.border(BorderStroke(2.dp, Color.White), retryShape)
+                            else Modifier
+                        ),
                     colors = ClickableSurfaceDefaults.colors(containerColor = OmniusRed),
-                    shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                    shape = ClickableSurfaceDefaults.shape(shape = retryShape),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                 ) {
                     Text(
                         "Retry",
@@ -98,11 +110,19 @@ fun HomeScreen(
 
             if (movies.isNotEmpty()) {
                 item(key = "section-${section.id ?: section.title}") {
-                    SlimMovieRow(
-                        title = section.title,
-                        movies = movies,
-                        onMovieClick = onMovieClick,
-                    )
+                    if (section.displayType == "top10") {
+                        Top10Row(
+                            title = section.title,
+                            movies = movies,
+                            onMovieClick = onMovieClick,
+                        )
+                    } else {
+                        SlimMovieRow(
+                            title = section.title,
+                            movies = movies,
+                            onMovieClick = onMovieClick,
+                        )
+                    }
                 }
             }
             if (series.isNotEmpty()) {
@@ -313,13 +333,22 @@ private fun HeroSlider(
 
             // Buttons
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                var playFocused by remember { mutableStateOf(false) }
+                val playShape = RoundedCornerShape(6.dp)
                 Surface(
                     onClick = { onMovieClick(movie.id) },
+                    modifier = Modifier
+                        .onFocusChanged { playFocused = it.isFocused }
+                        .then(
+                            if (playFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), playShape)
+                            else Modifier
+                        ),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.White,
                         focusedContainerColor = Color.White.copy(alpha = 0.9f),
                     ),
-                    shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                    shape = ClickableSurfaceDefaults.shape(shape = playShape),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                 ) {
                     Text(
                         "▶  Play",
@@ -329,13 +358,22 @@ private fun HeroSlider(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                 }
+                var infoFocused by remember { mutableStateOf(false) }
+                val infoShape = RoundedCornerShape(6.dp)
                 Surface(
                     onClick = { onMovieClick(movie.id) },
+                    modifier = Modifier
+                        .onFocusChanged { infoFocused = it.isFocused }
+                        .then(
+                            if (infoFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), infoShape)
+                            else Modifier
+                        ),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color(0xFF333333),
                         focusedContainerColor = Color(0xFF444444),
                     ),
-                    shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                    shape = ClickableSurfaceDefaults.shape(shape = infoShape),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                 ) {
                     Text(
                         "More Info",

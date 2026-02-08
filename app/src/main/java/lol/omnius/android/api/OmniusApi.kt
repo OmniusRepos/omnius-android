@@ -31,6 +31,11 @@ interface OmniusApi {
         @Query("movie_id") movieId: Int,
     ): MovieListResponse
 
+    @GET("api/v2/franchise_movies.json")
+    suspend fun getFranchiseMovies(
+        @Query("movie_id") movieId: Int,
+    ): MovieListResponse
+
     // --- Series ---
 
     @GET("api/v2/list_series.json")
@@ -73,23 +78,6 @@ interface OmniusApi {
 
     @GET("api/v2/channel_categories.json")
     suspend fun getChannelCategories(): ChannelCategoriesResponse
-
-    // --- Streaming ---
-
-    @POST("api/v2/stream/start")
-    suspend fun startStream(
-        @Body request: StreamStartRequest,
-    ): StreamInfo
-
-    @GET("api/v2/stream/status")
-    suspend fun getStreamStatus(
-        @Query("hash") infoHash: String,
-    ): StreamStats
-
-    @POST("api/v2/stream/stop")
-    suspend fun stopStream(
-        @Body request: StreamStopRequest,
-    )
 
     // --- Subtitles ---
 

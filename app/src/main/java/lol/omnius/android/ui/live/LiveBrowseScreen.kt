@@ -1,10 +1,13 @@
 package lol.omnius.android.ui.live
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,9 +75,18 @@ fun LiveBrowseScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(countries, key = { it.code }) { country ->
+                    var countryFocused by remember { mutableStateOf(false) }
+                    val countryShape = RoundedCornerShape(12.dp)
                     Surface(
                         onClick = { onCountryClick(country.code) },
-                        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                        modifier = Modifier
+                            .onFocusChanged { countryFocused = it.isFocused }
+                            .then(
+                                if (countryFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), countryShape)
+                                else Modifier
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(shape = countryShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = OmniusCard,
                             focusedContainerColor = OmniusRed.copy(alpha = 0.3f),

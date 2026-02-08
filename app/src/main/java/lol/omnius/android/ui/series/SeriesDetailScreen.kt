@@ -1,11 +1,14 @@
 package lol.omnius.android.ui.series
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -20,16 +23,14 @@ import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
 import lol.omnius.android.data.model.Episode
 import lol.omnius.android.data.model.Series
-import lol.omnius.android.data.model.StreamStartRequest
-import lol.omnius.android.data.model.StreamStopRequest
+import lol.omnius.android.torrent.TorrentStreamManager
+import lol.omnius.android.torrent.TorrentStreamState
 import lol.omnius.android.ui.theme.*
 
 class SeriesDetailViewModel : ViewModel() {
@@ -42,19 +43,17 @@ class SeriesDetailViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
 
-    // Streaming state
-    private val _isStreaming = MutableStateFlow(false)
-    val isStreaming = _isStreaming.asStateFlow()
-    private val _streamReady = MutableStateFlow(false)
-    val streamReady = _streamReady.asStateFlow()
-    private val _streamProgress = MutableStateFlow("")
-    val streamProgress = _streamProgress.asStateFlow()
-    private val _streamUrl = MutableStateFlow<String?>(null)
-    val streamUrl = _streamUrl.asStateFlow()
-    private val _streamTitle = MutableStateFlow("")
-    val streamTitle = _streamTitle.asStateFlow()
-    private var pollJob: Job? = null
-    private var currentInfoHash: String? = null
+    // Torrent streaming state
+    private val _torrentState = MutableStateFlow(TorrentStreamState())
+    val torrentState = _torrentState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            TorrentStreamManager.state.collect { state ->
+                _torrentState.value = state
+            }
+        }
+    }
 
     fun load(seriesId: Int) {
         viewModelScope.launch {
@@ -63,7 +62,6 @@ class SeriesDetailViewModel : ViewModel() {
                 val response = ApiClient.getApi().getSeriesDetails(seriesId)
                 val show = response.data?.series
                 _series.value = show
-                // If episodes came with the detail response, use them
                 val eps = response.data?.episodes
                 if (!eps.isNullOrEmpty()) {
                     _episodes.value = eps
@@ -92,91 +90,14 @@ class SeriesDetailViewModel : ViewModel() {
     }
 
     fun startEpisodeStream(hash: String, fileIndex: Int?, title: String) {
-        pollJob?.cancel()
-        viewModelScope.launch {
-            try {
-                _isStreaming.value = true
-                _streamReady.value = false
-                _streamTitle.value = title
-                _streamProgress.value = "Starting stream..."
-
-                val api = ApiClient.getApi()
-                val info = api.startStream(StreamStartRequest(hash = hash, fileIndex = fileIndex))
-                currentInfoHash = hash
-
-                // Build stream URL - server returns relative path like /stream/hash/0
-                val streamPath = info.streamUrl
-                val url = if (streamPath.startsWith("http://") || streamPath.startsWith("https://")) {
-                    streamPath
-                } else if (streamPath.isNotEmpty()) {
-                    val base = ApiClient.getBaseUrl().trimEnd('/')
-                    "$base${if (streamPath.startsWith("/")) streamPath else "/$streamPath"}"
-                } else {
-                    ApiClient.streamUrl(hash, info.fileIndex)
-                }
-                _streamUrl.value = url
-
-                // Poll for readiness
-                pollJob = viewModelScope.launch {
-                    while (_isStreaming.value && !_streamReady.value) {
-                        delay(1000)
-                        try {
-                            val stats = api.getStreamStatus(hash)
-                            val progress = stats.progress // 0-100
-                            val speed = stats.downloadSpeed
-                            val peers = stats.peers
-                            val pct = String.format("%.1f%%", progress)
-                            val spd = formatSpeed(speed)
-                            _streamProgress.value = "Buffering $pct at $spd • $peers peers"
-
-                            val ready = (progress >= 1.0 && speed > 500_000) ||
-                                (progress >= 0.3 && speed > 2_000_000 && peers > 5) ||
-                                (progress >= 2.0)
-
-                            if (ready) {
-                                _streamReady.value = true
-                                break
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }
-            } catch (e: Exception) {
-                _streamProgress.value = e.message ?: "Stream failed"
-                _isStreaming.value = false
-            }
-        }
-    }
-
-    fun clearStream() {
-        pollJob?.cancel()
-        val hash = currentInfoHash
-        _isStreaming.value = false
-        _streamReady.value = false
-        _streamUrl.value = null
-        _streamTitle.value = ""
-        currentInfoHash = null
-        if (hash != null) {
-            viewModelScope.launch {
-                try { ApiClient.getApi().stopStream(StreamStopRequest(hash)) } catch (_: Exception) {}
-            }
-        }
+        TorrentStreamManager.startStream(hash, title, fileIndex)
     }
 
     override fun onCleared() {
         super.onCleared()
-        pollJob?.cancel()
-        val hash = currentInfoHash
-        if (hash != null) {
-            viewModelScope.launch {
-                try { ApiClient.getApi().stopStream(StreamStopRequest(hash)) } catch (_: Exception) {}
-            }
+        if (_torrentState.value.isStreaming) {
+            TorrentStreamManager.stopStream()
         }
-    }
-
-    private fun formatSpeed(bytes: Long): String = when {
-        bytes >= 1_000_000 -> String.format("%.1f MB/s", bytes / 1_000_000.0)
-        bytes >= 1_000 -> String.format("%.0f KB/s", bytes / 1_000.0)
-        else -> "$bytes B/s"
     }
 }
 
@@ -185,30 +106,16 @@ class SeriesDetailViewModel : ViewModel() {
 fun SeriesDetailScreen(
     seriesId: Int,
     onBack: () -> Unit,
-    onPlay: (title: String, streamUrl: String, imdbCode: String) -> Unit,
+    onPlay: (title: String, streamUrl: String, imdbCode: String, isTorrent: Boolean) -> Unit,
     viewModel: SeriesDetailViewModel = viewModel(),
 ) {
     val show by viewModel.series.collectAsState()
     val episodes by viewModel.episodes.collectAsState()
     val selectedSeason by viewModel.selectedSeason.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isStreaming by viewModel.isStreaming.collectAsState()
-    val streamReady by viewModel.streamReady.collectAsState()
-    val streamProgress by viewModel.streamProgress.collectAsState()
-    val streamUrl by viewModel.streamUrl.collectAsState()
-    val streamTitle by viewModel.streamTitle.collectAsState()
+    val torrentState by viewModel.torrentState.collectAsState()
 
     LaunchedEffect(seriesId) { viewModel.load(seriesId) }
-
-    // Launch player when stream is ready
-    LaunchedEffect(streamReady) {
-        if (streamReady) {
-            val url = streamUrl ?: return@LaunchedEffect
-            val s = show ?: return@LaunchedEffect
-            onPlay(streamTitle, url, s.imdbCode)
-            viewModel.clearStream()
-        }
-    }
 
     if (isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -264,18 +171,6 @@ fun SeriesDetailScreen(
             }
         }
 
-        // Buffering indicator
-        if (isStreaming && !streamReady) {
-            item {
-                Text(
-                    text = streamProgress,
-                    color = OmniusGold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-            }
-        }
-
         // Season tabs
         item {
             TvLazyRow(
@@ -284,9 +179,18 @@ fun SeriesDetailScreen(
                 modifier = Modifier.padding(vertical = 12.dp),
             ) {
                 items((1..s.totalSeasons).toList()) { season ->
+                    var seasonFocused by remember { mutableStateOf(false) }
+                    val seasonShape = RoundedCornerShape(8.dp)
                     Surface(
                         onClick = { viewModel.selectSeason(seriesId, season) },
-                        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                        modifier = Modifier
+                            .onFocusChanged { seasonFocused = it.isFocused }
+                            .then(
+                                if (seasonFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), seasonShape)
+                                else Modifier
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(shape = seasonShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = if (season == selectedSeason) OmniusRed else OmniusSurface,
                         ),
@@ -306,11 +210,12 @@ fun SeriesDetailScreen(
         items(episodes, key = { it.id }) { episode ->
             EpisodeRow(
                 episode = episode,
-                isStreaming = isStreaming,
+                isStreaming = torrentState.isStreaming,
                 onPlay = { hash, fileIndex ->
-                    if (!isStreaming) {
+                    if (!torrentState.isStreaming) {
                         val title = "${s.title} S${episode.seasonNumber}E${episode.episodeNumber}"
                         viewModel.startEpisodeStream(hash, fileIndex, title)
+                        onPlay(title, "", s.imdbCode, true)
                     }
                 },
             )
@@ -325,6 +230,8 @@ private fun EpisodeRow(
     isStreaming: Boolean,
     onPlay: (hash: String, fileIndex: Int?) -> Unit,
 ) {
+    var episodeFocused by remember { mutableStateOf(false) }
+    val episodeShape = RoundedCornerShape(8.dp)
     Surface(
         onClick = {
             val torrent = episode.torrents?.maxByOrNull { it.seeds }
@@ -332,8 +239,14 @@ private fun EpisodeRow(
         },
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 4.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            .padding(horizontal = 24.dp, vertical = 4.dp)
+            .onFocusChanged { episodeFocused = it.isFocused }
+            .then(
+                if (episodeFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), episodeShape)
+                else Modifier
+            ),
+        shape = ClickableSurfaceDefaults.shape(shape = episodeShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = OmniusSurface,
             focusedContainerColor = OmniusCard,
@@ -382,3 +295,4 @@ private fun EpisodeRow(
         }
     }
 }
+

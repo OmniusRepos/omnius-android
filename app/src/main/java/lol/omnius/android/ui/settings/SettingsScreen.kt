@@ -1,10 +1,13 @@
 package lol.omnius.android.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,12 +65,21 @@ fun SettingsScreen() {
         Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            var saveFocused by remember { mutableStateOf(false) }
+            val saveShape = RoundedCornerShape(8.dp)
             Surface(
                 onClick = {
                     ApiClient.setBaseUrl(serverUrl)
                     saved = true
                 },
-                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                modifier = Modifier
+                    .onFocusChanged { saveFocused = it.isFocused }
+                    .then(
+                        if (saveFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), saveShape)
+                        else Modifier
+                    ),
+                shape = ClickableSurfaceDefaults.shape(shape = saveShape),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
                 colors = ClickableSurfaceDefaults.colors(containerColor = OmniusRed),
             ) {
                 Text(
