@@ -73,7 +73,7 @@ class LiveCountryViewModel : ViewModel() {
 fun LiveCountryScreen(
     countryCode: String,
     onBack: () -> Unit,
-    onChannelPlay: (name: String, url: String) -> Unit,
+    onChannelPlay: (channels: List<Channel>, index: Int) -> Unit,
     viewModel: LiveCountryViewModel = viewModel(),
 ) {
     val channels by viewModel.channels.collectAsState()
@@ -123,7 +123,11 @@ fun LiveCountryScreen(
                     val channelShape = RoundedCornerShape(8.dp)
                     Surface(
                         onClick = {
-                            channel.streamUrl?.let { url -> onChannelPlay(channel.name, url) }
+                            if (channel.streamUrl != null) {
+                                val playableChannels = channels.filter { it.streamUrl != null }
+                                val idx = playableChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+                                onChannelPlay(playableChannels, idx)
+                            }
                         },
                         modifier = Modifier
                             .onFocusChanged { channelFocused = it.isFocused }

@@ -18,6 +18,8 @@ import lol.omnius.android.ui.live.LiveCountryScreen
 import lol.omnius.android.ui.search.SearchScreen
 import lol.omnius.android.ui.favorites.FavoritesScreen
 import lol.omnius.android.ui.settings.SettingsScreen
+import lol.omnius.android.data.model.Channel
+import lol.omnius.android.ui.player.LivePlayerActivity
 import lol.omnius.android.ui.player.PlayerActivity
 
 @Composable
@@ -30,6 +32,17 @@ fun AppNavGraph(navController: NavHostController) {
             putExtra("stream_url", streamUrl)
             putExtra("imdb_code", imdbCode)
             putExtra("is_torrent", isTorrent)
+        }
+        context.startActivity(intent)
+    }
+
+    fun launchLivePlayer(channels: List<Channel>, index: Int) {
+        val names = channels.map { it.name }.toTypedArray()
+        val urls = channels.map { it.streamUrl ?: "" }.toTypedArray()
+        val intent = Intent(context, LivePlayerActivity::class.java).apply {
+            putExtra("channel_names", names)
+            putExtra("channel_urls", urls)
+            putExtra("channel_index", index)
         }
         context.startActivity(intent)
     }
@@ -96,7 +109,7 @@ fun AppNavGraph(navController: NavHostController) {
             LiveCountryScreen(
                 countryCode = code,
                 onBack = { navController.popBackStack() },
-                onChannelPlay = { name, url -> launchPlayer(name, url) },
+                onChannelPlay = { channels, index -> launchLivePlayer(channels, index) },
             )
         }
 

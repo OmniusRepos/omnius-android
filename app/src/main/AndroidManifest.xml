@@ -36,6 +36,13 @@
             android:configChanges="keyboard|keyboardHidden|screenSize|smallestScreenSize|screenLayout|orientation"
             android:launchMode="singleTop"
             android:theme="@style/Theme.Omnius.Player" />
+
+        <activity
+            android:name=".ui.player.LivePlayerActivity"
+            android:exported="false"
+            android:configChanges="keyboard|keyboardHidden|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Omnius.Player" />
     </application>
 
 </manifest>
