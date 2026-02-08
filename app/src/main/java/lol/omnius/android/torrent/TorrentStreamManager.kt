@@ -28,6 +28,8 @@ data class TorrentStreamState(
     val isStreaming: Boolean = false,
     val streamReady: Boolean = false,
     val subtitleFiles: List<SubtitleFileInfo> = emptyList(),
+    val piecesReady: Int = 0,
+    val piecesTotal: Int = 0,
 )
 
 object TorrentStreamManager {
@@ -295,18 +297,18 @@ object TorrentStreamManager {
                 currentFirstPiece = firstPiece
                 currentLastPiece = lastPiece
 
-                // Critical pieces: first 5 + last 2 (container headers)
-                val numPrepare = 5.coerceAtMost(lastPiece - firstPiece + 1)
-                val preparePieces = mutableListOf<Int>()
-                for (i in firstPiece until firstPiece + numPrepare) {
-                    preparePieces.add(i)
-                    torrentHandle.piecePriority(i, Priority.TOP_PRIORITY)
-                    torrentHandle.setPieceDeadline(i, 1)
-                }
-                for (i in maxOf(lastPiece - 1, firstPiece)..lastPiece) {
-                    if (i !in preparePieces) preparePieces.add(i)
-                    torrentHandle.piecePriority(i, Priority.TOP_PRIORITY)
-                    torrentHandle.setPieceDeadline(i, 1)
+                // Require first piece + last piece before playback starts.
+                // ExoPlayer needs both: start of file for headers, end for MP4 moov atom.
+                // waitForPiece() handles everything in between during playback.
+                val preparePieces = mutableListOf(firstPiece)
+                torrentHandle.piecePriority(firstPiece, Priority.TOP_PRIORITY)
+                torrentHandle.setPieceDeadline(firstPiece, 1)
+
+                // Last piece (container footer / moov atom) — required before start
+                if (lastPiece != firstPiece) {
+                    preparePieces.add(lastPiece)
+                    torrentHandle.piecePriority(lastPiece, Priority.TOP_PRIORITY)
+                    torrentHandle.setPieceDeadline(lastPiece, 1)
                 }
 
                 val filePath = File(saveDir!!, fileStorage.filePath(targetIndex)).absolutePath
@@ -342,10 +344,11 @@ object TorrentStreamManager {
                                 val pieceStatus = preparePieces.map { p ->
                                     "$p=${torrentHandle.havePiece(p)}"
                                 }
-                                val allPrepareReady = preparePieces.all { torrentHandle.havePiece(it) }
+                                val readyCount = preparePieces.count { torrentHandle.havePiece(it) }
+                                val allPrepareReady = readyCount == preparePieces.size
 
-                                // Ready when all critical pieces confirmed + minimum buffer
-                                ready = allPrepareReady && downloaded >= 5L * 1_024 * 1_024
+                                // Ready as soon as first piece is available
+                                ready = allPrepareReady
 
                                 stuckTimer++
                                 val isStuck = stuckTimer >= 20 && progress < 0.5 && peers < 2
@@ -358,6 +361,8 @@ object TorrentStreamManager {
                                     isStuck = isStuck,
                                     streamReady = ready,
                                     streamUrl = if (ready) filePath else null,
+                                    piecesReady = readyCount,
+                                    piecesTotal = preparePieces.size,
                                 )
 
                                 Log.i(TAG, "Poll: ${downloaded / 1_048_576}MB, ${speed / 1024}KB/s, $peers peers, preparePieces=$pieceStatus, allReady=$allPrepareReady, ready=$ready")

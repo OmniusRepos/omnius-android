@@ -31,9 +31,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import lol.omnius.android.api.ApiClient
+import lol.omnius.android.data.model.Subtitle
 import lol.omnius.android.torrent.SubtitleFileInfo
 import lol.omnius.android.torrent.TorrentDataSource
 import lol.omnius.android.torrent.TorrentStreamManager
@@ -87,6 +90,9 @@ class PlayerActivity : ComponentActivity() {
     // External subtitle files from torrent
     private var subtitleFiles: List<SubtitleFileInfo> = emptyList()
 
+    // API subtitles (from OpenSubtitles via backend)
+    private var apiSubtitles: List<Subtitle> = emptyList()
+
     // Track picker overlay
     private var trackPickerOverlay: FrameLayout? = null
 
@@ -106,6 +112,7 @@ class PlayerActivity : ComponentActivity() {
 
         val title = intent.getStringExtra("title") ?: ""
         val directUrl = intent.getStringExtra("stream_url")
+        val imdbCode = intent.getStringExtra("imdb_code") ?: ""
         isTorrent = intent.getBooleanExtra("is_torrent", false)
 
         val root = FrameLayout(this).apply {
@@ -145,6 +152,19 @@ class PlayerActivity : ComponentActivity() {
         ))
 
         setContentView(root)
+
+        // Fetch API subtitles in background if we have an IMDB code
+        if (imdbCode.isNotEmpty()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val response = ApiClient.getApi().searchSubtitles(imdbCode)
+                    apiSubtitles = response.subtitles
+                    Log.i("Player", "Found ${apiSubtitles.size} API subtitles for $imdbCode")
+                } catch (e: Exception) {
+                    Log.w("Player", "Failed to fetch subtitles: ${e.message}")
+                }
+            }
+        }
 
         if (isTorrent) {
             stateJob = scope.launch {
@@ -340,75 +360,55 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        controlsPlayIcon = TextView(this).apply {
-            text = "\u25B6"
-            setTextColor(Color.WHITE)
-            textSize = 18f
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setShadowLayer(4f, 0f, 1f, Color.BLACK)
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+        // Shared style for all control buttons: fixed size, red border on focus
+        val btnSize = dp(40)
+        val btnRadius = dp(6).toFloat()
+        val redBorder = Color.parseColor("#E50914")
+        val idleBorder = Color.parseColor("#55FFFFFF")
+
+        fun styledButton(label: String, onClick: () -> Unit): TextView {
+            return TextView(this).apply {
+                text = label
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                isFocusable = true
+                isFocusableInTouchMode = true
+                background = GradientDrawable().apply {
+                    cornerRadius = btnRadius
+                    setStroke(dp(2), idleBorder)
+                    setColor(Color.TRANSPARENT)
+                }
+                setOnFocusChangeListener { v, hasFocus ->
+                    (v.background as? GradientDrawable)?.apply {
+                        setStroke(dp(2), if (hasFocus) redBorder else idleBorder)
+                        setColor(if (hasFocus) Color.parseColor("#22E50914") else Color.TRANSPARENT)
+                    }
+                    (v as TextView).setTextColor(if (hasFocus) Color.WHITE else Color.parseColor("#CCCCCC"))
+                }
+                setOnClickListener { onClick() }
+            }
         }
-        controlsRow.addView(controlsPlayIcon, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ))
+
+        controlsPlayIcon = styledButton("\u25B6") {
+            player?.let { it.playWhenReady = !it.playWhenReady }
+            scheduleHideControls()
+        }
+        controlsRow.addView(controlsPlayIcon, LinearLayout.LayoutParams(btnSize, btnSize))
 
         // Spacer
         controlsRow.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
 
         // CC button
-        val ccButton = TextView(this).apply {
-            text = "CC"
-            setTextColor(Color.parseColor("#AAAAAA"))
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setPadding(dp(10), dp(4), dp(10), dp(4))
-            background = GradientDrawable().apply {
-                setStroke(dp(1), Color.parseColor("#AAAAAA"))
-                cornerRadius = dp(3).toFloat()
-                setColor(Color.TRANSPARENT)
-            }
-            setOnFocusChangeListener { v, hasFocus ->
-                (v.background as? GradientDrawable)?.apply {
-                    if (hasFocus) {
-                        setStroke(dp(1), Color.WHITE)
-                        setColor(Color.parseColor("#33FFFFFF"))
-                    } else {
-                        setStroke(dp(1), Color.parseColor("#AAAAAA"))
-                        setColor(Color.TRANSPARENT)
-                    }
-                }
-                (v as TextView).setTextColor(if (hasFocus) Color.WHITE else Color.parseColor("#AAAAAA"))
-            }
-            setOnClickListener { showTrackPicker(C.TRACK_TYPE_TEXT) }
-        }
-        controlsRow.addView(ccButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { marginEnd = dp(12) })
+        val ccButton = styledButton("CC") { showTrackPicker(C.TRACK_TYPE_TEXT) }
+        controlsRow.addView(ccButton, LinearLayout.LayoutParams(btnSize, btnSize).apply {
+            marginEnd = dp(10)
+        })
 
-        // Audio button
-        val audioButton = TextView(this).apply {
-            text = "\uD83D\uDD0A"  // speaker emoji
-            textSize = 16f
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(3).toFloat()
-                setColor(Color.TRANSPARENT)
-            }
-            setOnFocusChangeListener { v, hasFocus ->
-                (v.background as? GradientDrawable)?.setColor(
-                    if (hasFocus) Color.parseColor("#33FFFFFF") else Color.TRANSPARENT
-                )
-            }
-            setOnClickListener { showTrackPicker(C.TRACK_TYPE_AUDIO) }
-        }
-        controlsRow.addView(audioButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ))
+        // Audio button — speaker icon
+        val audioButton = styledButton("\u266A") { showTrackPicker(C.TRACK_TYPE_AUDIO) }
+        controlsRow.addView(audioButton, LinearLayout.LayoutParams(btnSize, btnSize))
 
         bottomContainer.addView(controlsRow, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -504,7 +504,13 @@ class PlayerActivity : ComponentActivity() {
 
         val mediaUri = if (url.startsWith("/")) Uri.fromFile(File(url)) else Uri.parse(url)
 
+        // Limit buffer to prevent OOM on Mi Box (268MB heap)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
+            .build()
+
         val builder = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
         if (isTorrent) {
             builder.setMediaSourceFactory(DefaultMediaSourceFactory(TorrentDataSource.Factory()))
         }
@@ -573,25 +579,44 @@ class PlayerActivity : ComponentActivity() {
                     androidx.media3.common.MediaMetadata.Builder().setTitle(title).build()
                 )
 
-            // Add external subtitle files from torrent
-            if (subtitleFiles.isNotEmpty()) {
-                val subConfigs = subtitleFiles.mapNotNull { sub ->
-                    val subFile = File(sub.path)
-                    if (subFile.exists() && subFile.length() > 0) {
+            // Collect all subtitle sources
+            val subConfigs = mutableListOf<MediaItem.SubtitleConfiguration>()
+
+            // 1. External subtitle files from torrent
+            for (sub in subtitleFiles) {
+                val subFile = File(sub.path)
+                if (subFile.exists() && subFile.length() > 0) {
+                    subConfigs.add(
                         MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(subFile))
                             .setMimeType(sub.mimeType)
                             .setLabel(sub.name)
-                            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                             .build()
-                    } else {
-                        Log.w("Player", "Subtitle file not ready: ${sub.path}")
-                        null
+                    )
+                }
+            }
+
+            // 2. API subtitles (OpenSubtitles via backend)
+            for (sub in apiSubtitles) {
+                if (sub.downloadUrl.isNotEmpty()) {
+                    val downloadUri = Uri.parse(ApiClient.subtitleDownloadUrl(sub.downloadUrl))
+                    val label = buildString {
+                        append(sub.languageName.ifEmpty { sub.language })
+                        if (sub.hearingImpaired) append(" [CC]")
+                        sub.releaseName?.let { r -> if (r.isNotEmpty()) append(" - $r") }
                     }
+                    subConfigs.add(
+                        MediaItem.SubtitleConfiguration.Builder(downloadUri)
+                            .setMimeType(MimeTypes.APPLICATION_SUBRIP)
+                            .setLabel(label)
+                            .setLanguage(sub.language)
+                            .build()
+                    )
                 }
-                if (subConfigs.isNotEmpty()) {
-                    mediaItemBuilder.setSubtitleConfigurations(subConfigs)
-                    Log.i("Player", "Added ${subConfigs.size} external subtitle tracks")
-                }
+            }
+
+            if (subConfigs.isNotEmpty()) {
+                mediaItemBuilder.setSubtitleConfigurations(subConfigs)
+                Log.i("Player", "Added ${subConfigs.size} subtitle tracks (${subtitleFiles.size} torrent, ${apiSubtitles.size} API)")
             }
 
             exo.setMediaItem(mediaItemBuilder.build())
@@ -706,9 +731,15 @@ class PlayerActivity : ComponentActivity() {
                 val downloaded = state.downloaded
                 val speed = state.downloadSpeed
                 val peers = state.peers
-                val requiredBytes = 15L * 1_024 * 1_024
-                bufferProgressBar?.progress = (downloaded.toFloat() / requiredBytes * 1000).toInt().coerceIn(0, 1000)
-                bufferProgressLabel?.text = "${formatBytes(downloaded)} / ${formatBytes(requiredBytes)}"
+                val pReady = state.piecesReady
+                val pTotal = state.piecesTotal
+                val pct = if (pTotal > 0) (pReady.toFloat() / pTotal * 1000).toInt().coerceIn(0, 1000) else 0
+                bufferProgressBar?.progress = pct
+                bufferProgressLabel?.text = if (pTotal > 0) {
+                    "$pReady / $pTotal pieces \u2022 ${formatBytes(downloaded)}"
+                } else {
+                    formatBytes(downloaded)
+                }
                 bufferStatsLabel?.text = "${if (speed > 0) "${formatBytes(speed)}/s" else "Connecting..."}  \u2022  $peers peers"
             }
             "error" -> {
@@ -832,8 +863,9 @@ class PlayerActivity : ComponentActivity() {
             container.addView(item, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
-            if (idx == 0 || opt.isSelected) {
-                item.requestFocus()
+            // Focus the selected item, or first item if none selected
+            if (opt.isSelected || (idx == 0 && options.none { it.isSelected })) {
+                item.post { item.requestFocus() }
             }
         }
 
@@ -881,39 +913,61 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Track picker is open — only handle back to dismiss
+        // Track picker open — let system handle focus nav + clicks, only intercept back
         if (trackPickerOverlay?.visibility == View.VISIBLE) {
             if (keyCode == KeyEvent.KEYCODE_BACK) { dismissTrackPicker(); return true }
             return super.onKeyDown(keyCode, event)
         }
+
+        // Buffer overlay — only back exits
         if (bufferOverlay?.visibility == View.VISIBLE) {
-            return if (keyCode == KeyEvent.KEYCODE_BACK) { finish(); true } else super.onKeyDown(keyCode, event)
+            return if (keyCode == KeyEvent.KEYCODE_BACK) { finish(); true }
+            else super.onKeyDown(keyCode, event)
         }
+
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 if (controlsVisible) { hideControls(); return true }
                 finish(); return true
             }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 player?.let { it.playWhenReady = !it.playWhenReady }
                 if (!controlsVisible) showControls() else scheduleHideControls()
                 return true
             }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                player?.let {
-                    val base = if (pendingSeekPosition >= 0) pendingSeekPosition else it.currentPosition
-                    playerSeekTo((base - 10_000).coerceAtLeast(0))
+            KeyEvent.KEYCODE_DPAD_CENTER -> {
+                if (!controlsVisible) {
+                    // First press shows controls and focuses play button
+                    showControls()
+                    controlsPlayIcon?.requestFocus()
+                    return true
                 }
-                showControls(); return true
+                // Controls visible — let system handle (clicks focused button)
+                scheduleHideControls()
+                return super.onKeyDown(keyCode, event)
             }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                player?.let {
-                    val base = if (pendingSeekPosition >= 0) pendingSeekPosition else it.currentPosition
-                    playerSeekTo((base + 10_000).coerceAtMost(it.duration))
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (!controlsVisible) {
+                    showControls()
+                    controlsPlayIcon?.requestFocus()
+                    return true
                 }
-                showControls(); return true
+                // Controls visible — let system move focus between buttons
+                scheduleHideControls()
+                return super.onKeyDown(keyCode, event)
             }
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { toggleControls(); return true }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (controlsVisible) { hideControls(); return true }
+                showControls()
+                controlsPlayIcon?.requestFocus()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (controlsVisible) { hideControls(); return true }
+                showControls()
+                controlsPlayIcon?.requestFocus()
+                return true
+            }
         }
         return super.onKeyDown(keyCode, event)
     }

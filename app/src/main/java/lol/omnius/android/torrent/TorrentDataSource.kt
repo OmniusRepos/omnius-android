@@ -6,6 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultHttpDataSource
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.min
@@ -75,8 +76,46 @@ class TorrentDataSource : BaseDataSource(false) {
         transferEnded()
     }
 
+    /**
+     * Routes file:// URIs to TorrentDataSource, http(s):// to DefaultHttpDataSource.
+     * This lets sidecar subtitle HTTP URLs work alongside torrent file playback.
+     */
     @UnstableApi
     class Factory : DataSource.Factory {
-        override fun createDataSource(): DataSource = TorrentDataSource()
+        private val httpFactory = DefaultHttpDataSource.Factory()
+
+        override fun createDataSource(): DataSource {
+            return RoutingDataSource(TorrentDataSource(), httpFactory.createDataSource())
+        }
+    }
+
+    @UnstableApi
+    private class RoutingDataSource(
+        private val torrentSource: TorrentDataSource,
+        private val httpSource: DataSource,
+    ) : DataSource {
+        private var activeSource: DataSource? = null
+
+        override fun open(dataSpec: DataSpec): Long {
+            val scheme = dataSpec.uri.scheme?.lowercase()
+            activeSource = if (scheme == "http" || scheme == "https") httpSource else torrentSource
+            return activeSource!!.open(dataSpec)
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            return activeSource!!.read(buffer, offset, length)
+        }
+
+        override fun getUri(): Uri? = activeSource?.uri
+
+        override fun close() {
+            activeSource?.close()
+            activeSource = null
+        }
+
+        override fun addTransferListener(transferListener: androidx.media3.datasource.TransferListener) {
+            torrentSource.addTransferListener(transferListener)
+            httpSource.addTransferListener(transferListener)
+        }
     }
 }
