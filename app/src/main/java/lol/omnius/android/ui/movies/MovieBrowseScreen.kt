@@ -19,7 +19,10 @@ import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
+import lol.omnius.android.data.FavMovie
+import lol.omnius.android.data.FavoritesManager
 import lol.omnius.android.ui.components.ContentCard
+import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.theme.OmniusRed
 import lol.omnius.android.ui.theme.OmniusSurface
 
@@ -30,6 +33,17 @@ fun MovieBrowseScreen(
     viewModel: MovieBrowseViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val favMovies by FavoritesManager.movies.collectAsState()
+    var favDialogMovie by remember { mutableStateOf<FavMovie?>(null) }
+
+    favDialogMovie?.let { movie ->
+        FavoriteDialog(
+            title = movie.title,
+            isFavorite = FavoritesManager.isMovieFav(movie.id),
+            onToggle = { FavoritesManager.toggleMovie(movie) },
+            onDismiss = { favDialogMovie = null },
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header
@@ -82,6 +96,10 @@ fun MovieBrowseScreen(
                         rating = movie.rating,
                         year = movie.year,
                         onClick = { onMovieClick(movie.id) },
+                        onLongClick = {
+                            favDialogMovie = FavMovie(movie.id, movie.title, movie.mediumCoverImage, movie.year, movie.rating)
+                        },
+                        isFavorite = FavoritesManager.isMovieFav(movie.id),
                     )
                 }
 

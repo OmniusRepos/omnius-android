@@ -1,20 +1,33 @@
 package lol.omnius.android.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import lol.omnius.android.R
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import lol.omnius.android.ui.navigation.SidebarItem
@@ -40,28 +53,27 @@ fun Sidebar(
             .padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Logo
+        // Logo — matching desktop SVG
         if (expanded) {
-            Text(
-                text = "OMNIUS",
-                color = OmniusRed,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 32.dp, start = 16.dp),
+            Image(
+                painter = painterResource(R.drawable.omnius_logo_full),
+                contentDescription = "Omnius",
+                modifier = Modifier
+                    .padding(bottom = 32.dp, start = 16.dp)
+                    .height(18.dp)
+                    .width(91.dp),
             )
         } else {
-            Text(
-                text = "O",
-                color = OmniusRed,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 32.dp),
+            Image(
+                painter = painterResource(R.drawable.omnius_logo_o),
+                contentDescription = "Omnius",
+                modifier = Modifier
+                    .padding(bottom = 32.dp)
+                    .size(24.dp),
             )
         }
 
         SidebarItem.entries.forEach { item ->
-            // Exact match for top-level, prefix match for detail pages
-            // e.g. "movies/{movieId}" starts with "movies", "live/country/{code}" starts with "live"
             val isActive = currentRoute == item.route ||
                 (currentRoute != null && currentRoute.startsWith(item.route + "/"))
 
@@ -120,19 +132,24 @@ private fun SidebarNavItem(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val icon = when (item) {
-                SidebarItem.HOME -> "\u2302"
-                SidebarItem.SEARCH -> "\u2315"
-                SidebarItem.MOVIES -> "\u25B6"
-                SidebarItem.SERIES -> "\u25A3"
-                SidebarItem.LIVE -> "\u25C9"
-                SidebarItem.FAVORITES -> "\u2665"
-                SidebarItem.SETTINGS -> "\u2699"
+            val icon: ImageVector = when (item) {
+                SidebarItem.HOME -> Icons.Filled.Home
+                SidebarItem.SEARCH -> Icons.Filled.Search
+                SidebarItem.MOVIES -> Icons.Rounded.Movie
+                SidebarItem.SERIES -> Icons.Rounded.Tv
+                SidebarItem.LIVE -> Icons.Rounded.LiveTv
+                SidebarItem.FAVORITES -> Icons.Filled.Favorite
+                SidebarItem.SETTINGS -> Icons.Filled.Settings
             }
-            Text(
-                text = icon,
-                color = textColor,
-                fontSize = 18.sp,
+            val iconColor = when (item) {
+                SidebarItem.LIVE -> if (isActive) OmniusRed else OmniusRed.copy(alpha = 0.6f)
+                else -> textColor
+            }
+            Icon(
+                imageVector = icon,
+                contentDescription = item.label,
+                tint = iconColor,
+                modifier = Modifier.size(20.dp),
             )
             if (expanded) {
                 Spacer(modifier = Modifier.width(12.dp))

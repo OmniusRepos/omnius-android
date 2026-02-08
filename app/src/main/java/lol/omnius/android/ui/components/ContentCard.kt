@@ -35,12 +35,15 @@ fun ContentCard(
     modifier: Modifier = Modifier,
     width: Dp = 150.dp,
     aspectRatio: Float = 2f / 3f,
+    onLongClick: (() -> Unit)? = null,
+    isFavorite: Boolean = false,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
 
     Surface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier
             .width(width)
             .onFocusChanged { isFocused = it.isFocused }
@@ -68,6 +71,18 @@ fun ContentCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                // Favorite heart indicator — top right
+                if (isFavorite) {
+                    Text(
+                        text = "\u2665",
+                        color = OmniusRed,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp),
+                    )
+                }
 
                 // Bottom gradient for rating badge readability
                 if (rating != null && rating > 0) {

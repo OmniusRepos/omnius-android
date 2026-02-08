@@ -17,9 +17,19 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("${rootProject.projectDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,6 +57,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.tv:tv-foundation:1.0.0-alpha11")
     implementation("androidx.tv:tv-material:1.0.0")
 
@@ -81,6 +92,7 @@ dependencies {
     // Torrent (P2P)
     implementation("org.libtorrent4j:libtorrent4j:2.1.0-38")
     implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-38")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-38")
 
     // Core
     implementation("androidx.core:core-ktx:1.15.0")

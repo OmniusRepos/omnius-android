@@ -41,11 +41,10 @@ class LivePlayerActivity : ComponentActivity() {
     private var channelLabel: TextView? = null
     private var loadingSpinner: ProgressBar? = null
     private var errorLabel: TextView? = null
+    private var topGradient: View? = null
+    private var hintLabel: TextView? = null
 
-    private val hideChannelRunnable = Runnable {
-        channelLabel?.animate()?.alpha(0f)?.setDuration(300)
-            ?.withEndAction { channelLabel?.visibility = View.GONE }?.start()
-    }
+    private val hideOverlayRunnable = Runnable { hideOverlay() }
 
     @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,7 +72,7 @@ class LivePlayerActivity : ComponentActivity() {
         ))
 
         // Channel name overlay (top-left, with gradient)
-        val topGradient = View(this).apply {
+        topGradient = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(Color.parseColor("#AA000000"), Color.TRANSPARENT),
@@ -110,7 +109,7 @@ class LivePlayerActivity : ComponentActivity() {
         ))
 
         // Channel number + up/down hint (bottom-right)
-        val hintLabel = TextView(this).apply {
+        hintLabel = TextView(this).apply {
             text = "\u25B2 \u25BC  Switch channel"
             setTextColor(Color.parseColor("#66FFFFFF"))
             textSize = 11f
@@ -183,11 +182,24 @@ class LivePlayerActivity : ComponentActivity() {
     }
 
     private fun showChannelName(name: String) {
-        handler.removeCallbacks(hideChannelRunnable)
         channelLabel?.text = name
-        channelLabel?.visibility = View.VISIBLE
-        channelLabel?.alpha = 1f
-        handler.postDelayed(hideChannelRunnable, 3000)
+        showOverlay()
+    }
+
+    private fun showOverlay() {
+        handler.removeCallbacks(hideOverlayRunnable)
+        listOf(channelLabel, topGradient, hintLabel).forEach { v ->
+            v?.alpha = 1f
+            v?.visibility = View.VISIBLE
+        }
+        handler.postDelayed(hideOverlayRunnable, 1000)
+    }
+
+    private fun hideOverlay() {
+        listOf(channelLabel, topGradient, hintLabel).forEach { v ->
+            v?.animate()?.alpha(0f)?.setDuration(300)
+                ?.withEndAction { v.visibility = View.GONE }?.start()
+        }
     }
 
     private fun switchChannel(delta: Int) {
@@ -211,12 +223,7 @@ class LivePlayerActivity : ComponentActivity() {
             KeyEvent.KEYCODE_BACK -> { finish(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> { switchChannel(-1); return true }
             KeyEvent.KEYCODE_DPAD_DOWN -> { switchChannel(1); return true }
-            KeyEvent.KEYCODE_DPAD_CENTER -> {
-                // Show channel name on center press
-                val name = channelNames.getOrElse(currentIndex) { "" }
-                if (name.isNotEmpty()) showChannelName(name)
-                return true
-            }
+            else -> { showOverlay(); return true }
         }
         return super.onKeyDown(keyCode, event)
     }

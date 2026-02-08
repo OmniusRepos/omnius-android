@@ -36,6 +36,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import lol.omnius.android.api.ApiClient
+import lol.omnius.android.data.WatchHistoryManager
 import lol.omnius.android.data.model.Subtitle
 import lol.omnius.android.torrent.SubtitleFileInfo
 import lol.omnius.android.torrent.TorrentDataSource
@@ -87,6 +88,17 @@ class PlayerActivity : ComponentActivity() {
     // Track pending seek to prevent seekbar from snapping back
     private var pendingSeekPosition: Long = -1
 
+    // Watch history metadata
+    private var contentId: Int = 0
+    private var contentType: String = ""
+    private var contentImage: String = ""
+    private var seriesId: Int = 0
+    private var seriesTitle: String = ""
+    private var seasonNumber: Int = 0
+    private var episodeNumber: Int = 0
+    private var torrentHash: String = ""
+    private var fileIndex: Int = -1
+
     // External subtitle files from torrent
     private var subtitleFiles: List<SubtitleFileInfo> = emptyList()
 
@@ -114,6 +126,16 @@ class PlayerActivity : ComponentActivity() {
         val directUrl = intent.getStringExtra("stream_url")
         val imdbCode = intent.getStringExtra("imdb_code") ?: ""
         isTorrent = intent.getBooleanExtra("is_torrent", false)
+
+        contentId = intent.getIntExtra("content_id", 0)
+        contentType = intent.getStringExtra("content_type") ?: ""
+        contentImage = intent.getStringExtra("content_image") ?: ""
+        seriesId = intent.getIntExtra("series_id", 0)
+        seriesTitle = intent.getStringExtra("series_title") ?: ""
+        seasonNumber = intent.getIntExtra("season_number", 0)
+        episodeNumber = intent.getIntExtra("episode_number", 0)
+        torrentHash = intent.getStringExtra("torrent_hash") ?: ""
+        fileIndex = intent.getIntExtra("file_index", -1)
 
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -622,6 +644,14 @@ class PlayerActivity : ComponentActivity() {
             exo.setMediaItem(mediaItemBuilder.build())
             exo.prepare()
             exo.playWhenReady = true
+
+            // Resume from saved position
+            if (contentId > 0 && contentType.isNotEmpty()) {
+                val saved = WatchHistoryManager.getProgress(contentId, contentType)
+                if (saved != null && saved.isContinueWatching) {
+                    exo.seekTo(saved.positionMs)
+                }
+            }
         }
 
         bufferStatusLabel?.text = "Preparing playback..."
@@ -972,7 +1002,35 @@ class PlayerActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    override fun onPause() { super.onPause(); player?.pause(); handler.removeCallbacks(updateProgressRunnable) }
+    override fun onPause() {
+        super.onPause()
+        saveWatchProgress()
+        player?.pause()
+        handler.removeCallbacks(updateProgressRunnable)
+    }
+
+    private fun saveWatchProgress() {
+        val exo = player ?: return
+        if (contentId == 0 || contentType.isEmpty()) return
+        val position = exo.currentPosition
+        val duration = exo.duration
+        if (duration <= 0) return
+        WatchHistoryManager.saveProgress(
+            contentId = contentId,
+            contentType = contentType,
+            title = currentTitle ?: "",
+            image = contentImage,
+            positionMs = position,
+            durationMs = duration,
+            seriesId = if (seriesId > 0) seriesId else null,
+            seriesTitle = seriesTitle.ifEmpty { null },
+            seasonNumber = if (seasonNumber > 0) seasonNumber else null,
+            episodeNumber = if (episodeNumber > 0) episodeNumber else null,
+            torrentHash = torrentHash.ifEmpty { null },
+            fileIndex = if (fileIndex >= 0) fileIndex else null,
+            imdbCode = intent.getStringExtra("imdb_code")?.ifEmpty { null },
+        )
+    }
     override fun onResume() { super.onResume(); player?.play(); if (playerReady) handler.post(updateProgressRunnable) }
 
     override fun onDestroy() {

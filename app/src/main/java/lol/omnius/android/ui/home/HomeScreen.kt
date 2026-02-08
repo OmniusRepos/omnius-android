@@ -20,13 +20,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.draw.clip
 import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.items
 import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import lol.omnius.android.data.FavMovie
+import lol.omnius.android.data.FavSeries
+import lol.omnius.android.data.FavoritesManager
+import lol.omnius.android.data.WatchEntry
+import lol.omnius.android.data.WatchHistoryManager
 import lol.omnius.android.data.model.HomeMovieHero
+import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.components.SeriesRow
 import lol.omnius.android.ui.components.SlimMovieRow
 import lol.omnius.android.ui.components.Top10Row
@@ -40,6 +49,30 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val favMovies by FavoritesManager.movies.collectAsState()
+    val favSeries by FavoritesManager.series.collectAsState()
+    val continueWatching by WatchHistoryManager.continueWatching.collectAsState()
+
+    // Dialog state for long-press favorite
+    var favDialogMovie by remember { mutableStateOf<FavMovie?>(null) }
+    var favDialogSeries by remember { mutableStateOf<FavSeries?>(null) }
+
+    favDialogMovie?.let { movie ->
+        FavoriteDialog(
+            title = movie.title,
+            isFavorite = FavoritesManager.isMovieFav(movie.id),
+            onToggle = { FavoritesManager.toggleMovie(movie) },
+            onDismiss = { favDialogMovie = null },
+        )
+    }
+    favDialogSeries?.let { series ->
+        FavoriteDialog(
+            title = series.title,
+            isFavorite = FavoritesManager.isSeriesFav(series.id),
+            onToggle = { FavoritesManager.toggleSeries(series) },
+            onDismiss = { favDialogSeries = null },
+        )
+    }
 
     if (state.isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -103,6 +136,25 @@ fun HomeScreen(
             }
         }
 
+        // Continue Watching row
+        if (continueWatching.isNotEmpty()) {
+            item(key = "continue-watching") {
+                ContinueWatchingRow(
+                    entries = continueWatching,
+                    onEntryClick = { entry ->
+                        if (entry.contentType == "movie") {
+                            onMovieClick(entry.contentId)
+                        } else if (entry.contentType == "episode") {
+                            val sId = entry.seriesId
+                            if (sId != null && sId > 0) {
+                                onSeriesClick(sId)
+                            }
+                        }
+                    },
+                )
+            }
+        }
+
         // API-provided sections
         state.sections.forEach { section ->
             val movies = section.movies ?: emptyList()
@@ -121,6 +173,10 @@ fun HomeScreen(
                             title = section.title,
                             movies = movies,
                             onMovieClick = onMovieClick,
+                            onMovieLongClick = { m ->
+                                favDialogMovie = FavMovie(m.id, m.title, m.mediumCoverImage, m.year, m.rating)
+                            },
+                            isMovieFavorite = { FavoritesManager.isMovieFav(it) },
                         )
                     }
                 }
@@ -131,6 +187,10 @@ fun HomeScreen(
                         title = section.title,
                         series = series,
                         onSeriesClick = onSeriesClick,
+                        onSeriesLongClick = { s ->
+                            favDialogSeries = FavSeries(s.id, s.title, s.posterImage, s.year, s.rating)
+                        },
+                        isSeriesFavorite = { FavoritesManager.isSeriesFav(it) },
                     )
                 }
             }
@@ -143,6 +203,10 @@ fun HomeScreen(
                     title = "Trending Now",
                     movies = state.trendingMovies,
                     onMovieClick = onMovieClick,
+                    onMovieLongClick = { m ->
+                        favDialogMovie = FavMovie(m.id, m.title, m.mediumCoverImage, m.year, m.rating)
+                    },
+                    isMovieFavorite = { FavoritesManager.isMovieFav(it) },
                 )
             }
         }
@@ -153,6 +217,10 @@ fun HomeScreen(
                     title = "Recently Added",
                     movies = state.latestMovies,
                     onMovieClick = onMovieClick,
+                    onMovieLongClick = { m ->
+                        favDialogMovie = FavMovie(m.id, m.title, m.mediumCoverImage, m.year, m.rating)
+                    },
+                    isMovieFavorite = { FavoritesManager.isMovieFav(it) },
                 )
             }
         }
@@ -163,6 +231,10 @@ fun HomeScreen(
                     title = "Top Rated",
                     movies = state.topRatedMovies,
                     onMovieClick = onMovieClick,
+                    onMovieLongClick = { m ->
+                        favDialogMovie = FavMovie(m.id, m.title, m.mediumCoverImage, m.year, m.rating)
+                    },
+                    isMovieFavorite = { FavoritesManager.isMovieFav(it) },
                 )
             }
         }
@@ -400,6 +472,123 @@ private fun HeroSlider(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ContinueWatchingRow(
+    entries: List<WatchEntry>,
+    onEntryClick: (WatchEntry) -> Unit,
+) {
+    Column(modifier = Modifier.padding(start = 32.dp, top = 16.dp)) {
+        Text(
+            text = "Continue Watching",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+        TvLazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(end = 32.dp),
+        ) {
+            items(entries, key = { "${it.contentType}-${it.contentId}" }) { entry ->
+                ContinueWatchingCard(
+                    entry = entry,
+                    onClick = { onEntryClick(entry) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun ContinueWatchingCard(
+    entry: WatchEntry,
+    onClick: () -> Unit,
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .width(180.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), shape)
+                else Modifier
+            ),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = OmniusCard,
+            focusedContainerColor = OmniusCard,
+        ),
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
+            ) {
+                AsyncImage(
+                    model = entry.image,
+                    contentDescription = entry.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // Bottom gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
+                            )
+                        ),
+                )
+                // Progress bar at bottom
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(Color(0xFF333333)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(entry.progressPercent)
+                            .background(OmniusRed),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = entry.title,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val remaining = entry.durationMs - entry.positionMs
+                val mins = (remaining / 60_000).coerceAtLeast(1)
+                Text(
+                    text = "${mins}m remaining",
+                    color = Color(0xFF888888),
+                    fontSize = 10.sp,
+                )
             }
         }
     }

@@ -19,8 +19,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
+import lol.omnius.android.data.FavSeries
+import lol.omnius.android.data.FavoritesManager
 import lol.omnius.android.data.model.Series
 import lol.omnius.android.ui.components.ContentCard
+import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.theme.OmniusRed
 
 class SeriesBrowseViewModel : ViewModel() {
@@ -53,6 +56,17 @@ fun SeriesBrowseScreen(
 ) {
     val series by viewModel.series.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val favSeries by FavoritesManager.series.collectAsState()
+    var favDialogSeries by remember { mutableStateOf<FavSeries?>(null) }
+
+    favDialogSeries?.let { s ->
+        FavoriteDialog(
+            title = s.title,
+            isFavorite = FavoritesManager.isSeriesFav(s.id),
+            onToggle = { FavoritesManager.toggleSeries(s) },
+            onDismiss = { favDialogSeries = null },
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -81,6 +95,10 @@ fun SeriesBrowseScreen(
                         rating = show.rating,
                         year = show.year,
                         onClick = { onSeriesClick(show.id) },
+                        onLongClick = {
+                            favDialogSeries = FavSeries(show.id, show.title, show.posterImage, show.year, show.rating)
+                        },
+                        isFavorite = FavoritesManager.isSeriesFav(show.id),
                     )
                 }
             }

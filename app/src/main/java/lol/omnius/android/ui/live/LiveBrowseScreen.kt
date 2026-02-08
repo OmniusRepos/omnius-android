@@ -23,7 +23,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
+import lol.omnius.android.data.FavCountry
+import lol.omnius.android.data.FavoritesManager
 import lol.omnius.android.data.model.ChannelCountry
+import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.theme.OmniusCard
 import lol.omnius.android.ui.theme.OmniusRed
 
@@ -53,6 +56,17 @@ fun LiveBrowseScreen(
 ) {
     val countries by viewModel.countries.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val favCountries by FavoritesManager.countries.collectAsState()
+    var favDialogCountry by remember { mutableStateOf<FavCountry?>(null) }
+
+    favDialogCountry?.let { c ->
+        FavoriteDialog(
+            title = c.name,
+            isFavorite = FavoritesManager.isCountryFav(c.code),
+            onToggle = { FavoritesManager.toggleCountry(c) },
+            onDismiss = { favDialogCountry = null },
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -79,6 +93,9 @@ fun LiveBrowseScreen(
                     val countryShape = RoundedCornerShape(12.dp)
                     Surface(
                         onClick = { onCountryClick(country.code) },
+                        onLongClick = {
+                            favDialogCountry = FavCountry(country.code, country.name, country.flag)
+                        },
                         modifier = Modifier
                             .onFocusChanged { countryFocused = it.isFocused }
                             .then(
@@ -101,11 +118,14 @@ fun LiveBrowseScreen(
                                 fontSize = 28.sp,
                             )
                             Spacer(Modifier.width(12.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(country.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 country.channelCount?.let {
                                     Text("$it channels", color = Color(0xFF888888), fontSize = 12.sp)
                                 }
+                            }
+                            if (FavoritesManager.isCountryFav(country.code)) {
+                                Text("\u2665", color = OmniusRed, fontSize = 16.sp)
                             }
                         }
                     }

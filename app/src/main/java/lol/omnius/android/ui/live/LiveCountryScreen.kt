@@ -26,8 +26,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
+import lol.omnius.android.data.FavChannel
+import lol.omnius.android.data.FavoritesManager
 import lol.omnius.android.data.model.Channel
 import lol.omnius.android.data.model.ChannelCountry
+import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.theme.OmniusCard
 import lol.omnius.android.ui.theme.OmniusRed
 import lol.omnius.android.ui.theme.OmniusSurface
@@ -80,6 +83,17 @@ fun LiveCountryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val countryName by viewModel.countryName.collectAsState()
     val totalChannels by viewModel.totalChannels.collectAsState()
+    val favChannels by FavoritesManager.channels.collectAsState()
+    var favDialogChannel by remember { mutableStateOf<FavChannel?>(null) }
+
+    favDialogChannel?.let { ch ->
+        FavoriteDialog(
+            title = ch.name,
+            isFavorite = FavoritesManager.isChannelFav(ch.id),
+            onToggle = { FavoritesManager.toggleChannel(ch) },
+            onDismiss = { favDialogChannel = null },
+        )
+    }
 
     LaunchedEffect(countryCode) { viewModel.load(countryCode) }
 
@@ -128,6 +142,9 @@ fun LiveCountryScreen(
                                 val idx = playableChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
                                 onChannelPlay(playableChannels, idx)
                             }
+                        },
+                        onLongClick = {
+                            favDialogChannel = FavChannel(channel.id, channel.name, channel.logo, channel.streamUrl, channel.country)
                         },
                         modifier = Modifier
                             .onFocusChanged { channelFocused = it.isFocused }
@@ -191,6 +208,12 @@ fun LiveCountryScreen(
                                         maxLines = 1,
                                     )
                                 }
+                            }
+
+                            // Favorite indicator
+                            if (FavoritesManager.isChannelFav(channel.id)) {
+                                Text("\u2665", color = OmniusRed, fontSize = 14.sp)
+                                Spacer(Modifier.width(8.dp))
                             }
 
                             // Live indicator

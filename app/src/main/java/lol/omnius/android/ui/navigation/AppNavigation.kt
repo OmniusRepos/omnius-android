@@ -19,6 +19,7 @@ import lol.omnius.android.ui.search.SearchScreen
 import lol.omnius.android.ui.favorites.FavoritesScreen
 import lol.omnius.android.ui.settings.SettingsScreen
 import lol.omnius.android.data.model.Channel
+import lol.omnius.android.data.FavChannel
 import lol.omnius.android.ui.player.LivePlayerActivity
 import lol.omnius.android.ui.player.PlayerActivity
 
@@ -26,12 +27,35 @@ import lol.omnius.android.ui.player.PlayerActivity
 fun AppNavGraph(navController: NavHostController) {
     val context = LocalContext.current
 
-    fun launchPlayer(title: String, streamUrl: String, imdbCode: String = "", isTorrent: Boolean = false) {
+    fun launchPlayer(
+        title: String,
+        streamUrl: String,
+        imdbCode: String = "",
+        isTorrent: Boolean = false,
+        contentId: Int = 0,
+        contentType: String = "",
+        contentImage: String = "",
+        seriesId: Int = 0,
+        seriesTitle: String = "",
+        seasonNumber: Int = 0,
+        episodeNumber: Int = 0,
+        torrentHash: String = "",
+        fileIndex: Int = -1,
+    ) {
         val intent = Intent(context, PlayerActivity::class.java).apply {
             putExtra("title", title)
             putExtra("stream_url", streamUrl)
             putExtra("imdb_code", imdbCode)
             putExtra("is_torrent", isTorrent)
+            putExtra("content_id", contentId)
+            putExtra("content_type", contentType)
+            putExtra("content_image", contentImage)
+            putExtra("series_id", seriesId)
+            putExtra("series_title", seriesTitle)
+            putExtra("season_number", seasonNumber)
+            putExtra("episode_number", episodeNumber)
+            putExtra("torrent_hash", torrentHash)
+            putExtra("file_index", fileIndex)
         }
         context.startActivity(intent)
     }
@@ -72,7 +96,9 @@ fun AppNavGraph(navController: NavHostController) {
             MovieDetailScreen(
                 movieId = movieId,
                 onBack = { navController.popBackStack() },
-                onPlay = { title, streamUrl, imdbCode, isTorrent -> launchPlayer(title, streamUrl, imdbCode, isTorrent) },
+                onPlay = { title, streamUrl, imdbCode, isTorrent, contentId, contentImage ->
+                    launchPlayer(title, streamUrl, imdbCode, isTorrent, contentId = contentId, contentType = "movie", contentImage = contentImage)
+                },
                 onMovieClick = { navController.navigate(NavRoutes.movieDetail(it)) },
             )
         }
@@ -91,7 +117,9 @@ fun AppNavGraph(navController: NavHostController) {
             SeriesDetailScreen(
                 seriesId = seriesId,
                 onBack = { navController.popBackStack() },
-                onPlay = { title, streamUrl, imdbCode, isTorrent -> launchPlayer(title, streamUrl, imdbCode, isTorrent) },
+                onPlay = { title, streamUrl, imdbCode, isTorrent, contentId, contentImage, seriesId2, seriesTitle, seasonNum, episodeNum, hash, fIdx ->
+                    launchPlayer(title, streamUrl, imdbCode, isTorrent, contentId = contentId, contentType = "episode", contentImage = contentImage, seriesId = seriesId2, seriesTitle = seriesTitle, seasonNumber = seasonNum, episodeNumber = episodeNum, torrentHash = hash, fileIndex = fIdx)
+                },
             )
         }
 
@@ -124,6 +152,19 @@ fun AppNavGraph(navController: NavHostController) {
             FavoritesScreen(
                 onMovieClick = { navController.navigate(NavRoutes.movieDetail(it)) },
                 onSeriesClick = { navController.navigate(NavRoutes.seriesDetail(it)) },
+                onCountryClick = { navController.navigate(NavRoutes.liveCountry(it)) },
+                onChannelPlay = { favChannel ->
+                    if (favChannel.streamUrl != null) {
+                        val names = arrayOf(favChannel.name)
+                        val urls = arrayOf(favChannel.streamUrl)
+                        val intent = Intent(context, LivePlayerActivity::class.java).apply {
+                            putExtra("channel_names", names)
+                            putExtra("channel_urls", urls)
+                            putExtra("channel_index", 0)
+                        }
+                        context.startActivity(intent)
+                    }
+                },
             )
         }
 

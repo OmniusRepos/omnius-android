@@ -29,6 +29,9 @@ import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
 import lol.omnius.android.data.model.Episode
 import lol.omnius.android.data.model.Series
+import lol.omnius.android.data.FavSeries
+import lol.omnius.android.data.FavoritesManager
+import lol.omnius.android.data.WatchHistoryManager
 import lol.omnius.android.torrent.TorrentStreamManager
 import lol.omnius.android.torrent.TorrentStreamState
 import lol.omnius.android.ui.theme.*
@@ -106,7 +109,7 @@ class SeriesDetailViewModel : ViewModel() {
 fun SeriesDetailScreen(
     seriesId: Int,
     onBack: () -> Unit,
-    onPlay: (title: String, streamUrl: String, imdbCode: String, isTorrent: Boolean) -> Unit,
+    onPlay: (title: String, streamUrl: String, imdbCode: String, isTorrent: Boolean, contentId: Int, contentImage: String, seriesId: Int, seriesTitle: String, seasonNumber: Int, episodeNumber: Int, torrentHash: String, fileIndex: Int) -> Unit,
     viewModel: SeriesDetailViewModel = viewModel(),
 ) {
     val show by viewModel.series.collectAsState()
@@ -114,6 +117,8 @@ fun SeriesDetailScreen(
     val selectedSeason by viewModel.selectedSeason.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val torrentState by viewModel.torrentState.collectAsState()
+    val favSeries by FavoritesManager.series.collectAsState()
+    val watchHistory by WatchHistoryManager.history.collectAsState()
 
     LaunchedEffect(seriesId) { viewModel.load(seriesId) }
 
@@ -167,6 +172,39 @@ fun SeriesDetailScreen(
                     Text(s.genres.joinToString(", "), color = OmniusGold, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     Text(s.summary, color = Color(0xFFBBBBBB), fontSize = 13.sp, maxLines = 3)
+                    Spacer(Modifier.height(12.dp))
+
+                    // Favorite button
+                    val isFav = FavoritesManager.isSeriesFav(s.id)
+                    var favFocused by remember { mutableStateOf(false) }
+                    val favShape = RoundedCornerShape(8.dp)
+                    Surface(
+                        onClick = {
+                            FavoritesManager.toggleSeries(
+                                FavSeries(s.id, s.title, s.posterImage, s.year, s.rating)
+                            )
+                        },
+                        modifier = Modifier
+                            .onFocusChanged { favFocused = it.isFocused }
+                            .then(
+                                if (favFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), favShape)
+                                else Modifier
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(shape = favShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = if (isFav) OmniusRed else OmniusSurface,
+                            focusedContainerColor = if (isFav) OmniusRed.copy(alpha = 0.8f) else Color(0xFF333333),
+                        ),
+                    ) {
+                        Text(
+                            text = if (isFav) "\u2665 Listed" else "\u2661 My List",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                        )
+                    }
                 }
             }
         }
@@ -208,14 +246,22 @@ fun SeriesDetailScreen(
 
         // Episodes
         items(episodes, key = { it.id }) { episode ->
+            val watchEntry = watchHistory.find { it.contentId == episode.id && it.contentType == "episode" }
             EpisodeRow(
                 episode = episode,
                 isStreaming = torrentState.isStreaming,
+                isWatched = watchEntry?.isWatched == true,
+                progressPercent = watchEntry?.progressPercent ?: 0f,
                 onPlay = { hash, fileIndex ->
                     if (!torrentState.isStreaming) {
                         val title = "${s.title} S${episode.seasonNumber}E${episode.episodeNumber}"
                         viewModel.startEpisodeStream(hash, fileIndex, title)
-                        onPlay(title, "", s.imdbCode, true)
+                        onPlay(
+                            title, "", s.imdbCode, true,
+                            episode.id, episode.stillImage ?: s.posterImage,
+                            s.id, s.title, episode.seasonNumber, episode.episodeNumber,
+                            hash, fileIndex ?: -1,
+                        )
                     }
                 },
             )
@@ -228,6 +274,8 @@ fun SeriesDetailScreen(
 private fun EpisodeRow(
     episode: Episode,
     isStreaming: Boolean,
+    isWatched: Boolean = false,
+    progressPercent: Float = 0f,
     onPlay: (hash: String, fileIndex: Int?) -> Unit,
 ) {
     var episodeFocused by remember { mutableStateOf(false) }
@@ -257,23 +305,54 @@ private fun EpisodeRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (episode.stillImage != null) {
-                AsyncImage(
-                    model = episode.stillImage,
-                    contentDescription = episode.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .width(120.dp)
-                        .height(68.dp),
-                )
+                Box {
+                    AsyncImage(
+                        model = episode.stillImage,
+                        contentDescription = episode.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .width(120.dp)
+                            .height(68.dp),
+                    )
+                    // Progress bar on thumbnail
+                    if (progressPercent > 0f && !isWatched) {
+                        Box(
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(3.dp)
+                                .align(Alignment.BottomStart)
+                                .background(Color(0xFF333333)),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(progressPercent)
+                                    .background(OmniusRed),
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.width(16.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "E${episode.episodeNumber} - ${episode.title}",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "E${episode.episodeNumber} - ${episode.title}",
+                        color = if (isWatched) OmniusTextSecondary else Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (isWatched) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "\u2713",
+                            color = OmniusGold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 if (episode.summary != null) {
                     Text(
                         text = episode.summary,
@@ -285,7 +364,7 @@ private fun EpisodeRow(
                 val best = episode.torrents?.maxByOrNull { it.seeds }
                 if (best != null) {
                     Text(
-                        text = "${best.quality} • ${best.size} • ${best.seeds} seeds",
+                        text = "${best.quality} \u2022 ${best.size} \u2022 ${best.seeds} seeds",
                         color = OmniusGold,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp),

@@ -22,6 +22,8 @@ fun MovieRow(
     movies: List<Movie>,
     onMovieClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onMovieLongClick: ((Movie) -> Unit)? = null,
+    isMovieFavorite: ((Int) -> Boolean)? = null,
 ) {
     Column(modifier = modifier.padding(vertical = 8.dp)) {
         Text(
@@ -43,6 +45,8 @@ fun MovieRow(
                     rating = movie.rating,
                     year = movie.year,
                     onClick = { onMovieClick(movie.id) },
+                    onLongClick = onMovieLongClick?.let { { it(movie) } },
+                    isFavorite = isMovieFavorite?.invoke(movie.id) == true,
                 )
             }
         }
@@ -56,6 +60,8 @@ fun SlimMovieRow(
     movies: List<HomeMovieSlim>,
     onMovieClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onMovieLongClick: ((HomeMovieSlim) -> Unit)? = null,
+    isMovieFavorite: ((Int) -> Boolean)? = null,
 ) {
     Column(modifier = modifier.padding(vertical = 8.dp)) {
         Text(
@@ -77,6 +83,8 @@ fun SlimMovieRow(
                     rating = movie.rating,
                     year = movie.year,
                     onClick = { onMovieClick(movie.id) },
+                    onLongClick = onMovieLongClick?.let { { it(movie) } },
+                    isFavorite = isMovieFavorite?.invoke(movie.id) == true,
                 )
             }
         }
@@ -90,6 +98,8 @@ fun SeriesRow(
     series: List<Series>,
     onSeriesClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onSeriesLongClick: ((Series) -> Unit)? = null,
+    isSeriesFavorite: ((Int) -> Boolean)? = null,
 ) {
     Column(modifier = modifier.padding(vertical = 8.dp)) {
         Text(
@@ -111,6 +121,8 @@ fun SeriesRow(
                     rating = show.rating,
                     year = show.year,
                     onClick = { onSeriesClick(show.id) },
+                    onLongClick = onSeriesLongClick?.let { { it(show) } },
+                    isFavorite = isSeriesFavorite?.invoke(show.id) == true,
                 )
             }
         }
