@@ -14,6 +14,7 @@ import lol.omnius.android.ui.movies.MovieDetailScreen
 import lol.omnius.android.ui.series.SeriesBrowseScreen
 import lol.omnius.android.ui.series.SeriesDetailScreen
 import lol.omnius.android.ui.live.LiveBrowseScreen
+import lol.omnius.android.ui.live.LiveCategoryScreen
 import lol.omnius.android.ui.live.LiveCountryScreen
 import lol.omnius.android.ui.search.SearchScreen
 import lol.omnius.android.ui.favorites.FavoritesScreen
@@ -126,6 +127,8 @@ fun AppNavGraph(navController: NavHostController) {
         composable(NavRoutes.LIVE) {
             LiveBrowseScreen(
                 onCountryClick = { navController.navigate(NavRoutes.liveCountry(it)) },
+                onCategoryClick = { navController.navigate(NavRoutes.liveCategory(it)) },
+                onChannelPlay = { channels, index -> launchLivePlayer(channels, index) },
             )
         }
 
@@ -136,6 +139,18 @@ fun AppNavGraph(navController: NavHostController) {
             val code = backStackEntry.arguments?.getString("countryCode") ?: return@composable
             LiveCountryScreen(
                 countryCode = code,
+                onBack = { navController.popBackStack() },
+                onChannelPlay = { channels, index -> launchLivePlayer(channels, index) },
+            )
+        }
+
+        composable(
+            route = NavRoutes.LIVE_CATEGORY,
+            arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getString("categoryId") ?: return@composable
+            LiveCategoryScreen(
+                categoryId = id,
                 onBack = { navController.popBackStack() },
                 onChannelPlay = { channels, index -> launchLivePlayer(channels, index) },
             )

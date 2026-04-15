@@ -19,6 +19,12 @@ interface OmniusApi {
         @Query("year") year: Int? = null,
     ): MovieListResponse
 
+    @GET("api/v2/search_online.json")
+    suspend fun searchOnline(
+        @Query("query_term") queryTerm: String,
+        @Query("limit") limit: Int = 20,
+    ): MovieListResponse
+
     @GET("api/v2/movie_details.json")
     suspend fun getMovieDetails(
         @Query("movie_id") movieId: Int,
