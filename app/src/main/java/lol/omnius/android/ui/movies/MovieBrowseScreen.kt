@@ -55,6 +55,22 @@ fun MovieBrowseScreen(
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
         )
 
+        // Sort chips
+        TvLazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 8.dp),
+        ) {
+            items(SortOption.entries.toList()) { sort ->
+                FilterChip(
+                    label = sort.label,
+                    selected = state.selectedSort == sort,
+                    onClick = { viewModel.selectSort(sort) },
+                    color = Color(0xFF6366F1),
+                )
+            }
+        }
+
         // Genre chips
         TvLazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -62,14 +78,14 @@ fun MovieBrowseScreen(
             modifier = Modifier.padding(bottom = 16.dp),
         ) {
             item {
-                GenreChip(
+                FilterChip(
                     label = "All",
                     selected = state.selectedGenre == null,
                     onClick = { viewModel.selectGenre(null) },
                 )
             }
             items(MOVIE_GENRES) { genre ->
-                GenreChip(
+                FilterChip(
                     label = genre,
                     selected = state.selectedGenre == genre,
                     onClick = { viewModel.selectGenre(genre) },
@@ -116,10 +132,11 @@ fun MovieBrowseScreen(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun GenreChip(
+fun FilterChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    color: Color = OmniusRed,
 ) {
     var chipFocused by remember { mutableStateOf(false) }
     val chipShape = RoundedCornerShape(8.dp)
@@ -128,14 +145,14 @@ fun GenreChip(
         modifier = Modifier
             .onFocusChanged { chipFocused = it.isFocused }
             .then(
-                if (chipFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), chipShape)
+                if (chipFocused) Modifier.border(BorderStroke(2.dp, color), chipShape)
                 else Modifier
             ),
         shape = ClickableSurfaceDefaults.shape(shape = chipShape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) OmniusRed else OmniusSurface,
-            focusedContainerColor = if (selected) OmniusRed else Color(0xFF333333),
+            containerColor = if (selected) color else OmniusSurface,
+            focusedContainerColor = if (selected) color else Color(0xFF333333),
         ),
     ) {
         Text(

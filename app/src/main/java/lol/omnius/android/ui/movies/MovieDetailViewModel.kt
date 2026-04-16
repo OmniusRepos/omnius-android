@@ -49,6 +49,19 @@ class MovieDetailViewModel : ViewModel() {
                     movie = response.data?.movie,
                 )
 
+                // Auto-refresh torrents in background
+                launch {
+                    try {
+                        api.refreshMovie(mapOf("movie_id" to movieId))
+                        // Reload to get updated torrents
+                        val refreshed = api.getMovieDetails(movieId)
+                        val updatedMovie = refreshed.data?.movie
+                        if (updatedMovie != null) {
+                            _state.value = _state.value.copy(movie = updatedMovie)
+                        }
+                    } catch (_: Exception) {}
+                }
+
                 // Load related content in background
                 launch {
                     try {

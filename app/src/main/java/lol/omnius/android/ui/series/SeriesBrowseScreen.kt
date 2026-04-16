@@ -14,6 +14,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.foundation.lazy.grid.TvGridCells
 import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.tv.foundation.lazy.grid.items
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,26 +26,91 @@ import lol.omnius.android.data.FavoritesManager
 import lol.omnius.android.data.model.Series
 import lol.omnius.android.ui.components.ContentCard
 import lol.omnius.android.ui.components.FavoriteDialog
+import lol.omnius.android.ui.movies.FilterChip
 import lol.omnius.android.ui.theme.OmniusRed
 
+enum class SeriesSortOption(val label: String, val apiValue: String, val order: String = "desc") {
+    TOP_RATED("Top Rated", "rating"),
+    LATEST("Latest", "date_added"),
+    ONGOING("Ongoing", "rating"),  // uses status filter
+}
+
+val SERIES_GENRES = listOf(
+    "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime",
+    "Documentary", "Drama", "Fantasy", "History", "Horror", "Mystery",
+    "Romance", "Sci-Fi", "Thriller", "War",
+)
+
+data class SeriesBrowseState(
+    val isLoading: Boolean = true,
+    val series: List<Series> = emptyList(),
+    val selectedGenre: String? = null,
+    val selectedSort: SeriesSortOption = SeriesSortOption.TOP_RATED,
+    val page: Int = 1,
+    val hasMore: Boolean = true,
+    val error: String? = null,
+)
+
 class SeriesBrowseViewModel : ViewModel() {
-    private val _series = MutableStateFlow<List<Series>>(emptyList())
-    val series = _series.asStateFlow()
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading = _isLoading.asStateFlow()
+    private val _state = MutableStateFlow(SeriesBrowseState())
+    val state = _state.asStateFlow()
 
     init {
-        load()
+        loadSeries()
     }
 
-    private fun load() {
+    fun loadSeries(reset: Boolean = false) {
         viewModelScope.launch {
+            val currentState = _state.value
+            val page = if (reset) 1 else currentState.page
+
+            _state.value = currentState.copy(
+                isLoading = true,
+                error = null,
+                page = page,
+                series = if (reset) emptyList() else currentState.series,
+            )
+
             try {
-                _isLoading.value = true
-                val response = ApiClient.getApi().listSeries(limit = 40, sortBy = "rating")
-                _series.value = response.data?.series ?: emptyList()
-            } catch (_: Exception) {}
-            _isLoading.value = false
+                val sort = _state.value.selectedSort
+                val response = ApiClient.getApi().listSeries(
+                    limit = 20,
+                    page = page,
+                    genre = _state.value.selectedGenre,
+                    sortBy = sort.apiValue,
+                    orderBy = sort.order,
+                    status = if (sort == SeriesSortOption.ONGOING) "Continuing" else null,
+                )
+                val newSeries = response.data?.series ?: emptyList()
+
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    series = if (reset) newSeries else _state.value.series + newSeries,
+                    hasMore = newSeries.size >= 20,
+                    page = page + 1,
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = e.message,
+                )
+            }
+        }
+    }
+
+    fun selectGenre(genre: String?) {
+        _state.value = _state.value.copy(selectedGenre = genre)
+        loadSeries(reset = true)
+    }
+
+    fun selectSort(sort: SeriesSortOption) {
+        _state.value = _state.value.copy(selectedSort = sort)
+        loadSeries(reset = true)
+    }
+
+    fun loadMore() {
+        if (!_state.value.isLoading && _state.value.hasMore) {
+            loadSeries()
         }
     }
 }
@@ -54,8 +121,7 @@ fun SeriesBrowseScreen(
     onSeriesClick: (Int) -> Unit,
     viewModel: SeriesBrowseViewModel = viewModel(),
 ) {
-    val series by viewModel.series.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val state by viewModel.state.collectAsState()
     val favSeries by FavoritesManager.series.collectAsState()
     var favDialogSeries by remember { mutableStateOf<FavSeries?>(null) }
 
@@ -74,10 +140,53 @@ fun SeriesBrowseScreen(
             color = Color.White,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp),
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
         )
 
-        if (isLoading) {
+        // Sort chips
+        TvLazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 8.dp),
+        ) {
+            items(SeriesSortOption.entries.toList()) { sort ->
+                FilterChip(
+                    label = sort.label,
+                    selected = state.selectedSort == sort,
+                    onClick = { viewModel.selectSort(sort) },
+                    color = Color(0xFF6366F1),
+                )
+            }
+        }
+
+        // Genre chips
+        TvLazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 16.dp),
+        ) {
+            item {
+                FilterChip(
+                    label = "All",
+                    selected = state.selectedGenre == null,
+                    onClick = { viewModel.selectGenre(null) },
+                )
+            }
+            items(SERIES_GENRES) { genre ->
+                FilterChip(
+                    label = genre,
+                    selected = state.selectedGenre == genre,
+                    onClick = { viewModel.selectGenre(genre) },
+                )
+            }
+        }
+
+        // Series grid
+        if (state.error != null && state.series.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(state.error ?: "Error", color = OmniusRed, fontSize = 14.sp)
+            }
+        } else if (state.isLoading && state.series.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Loading...", color = Color.White)
             }
@@ -88,7 +197,7 @@ fun SeriesBrowseScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(series, key = { it.id }) { show ->
+                items(state.series, key = { it.id }) { show ->
                     ContentCard(
                         title = show.title,
                         imageUrl = show.posterImage,
@@ -100,6 +209,13 @@ fun SeriesBrowseScreen(
                         },
                         isFavorite = FavoritesManager.isSeriesFav(show.id),
                     )
+                }
+
+                // Load more trigger
+                if (state.hasMore && !state.isLoading) {
+                    item {
+                        LaunchedEffect(Unit) { viewModel.loadMore() }
+                    }
                 }
             }
         }

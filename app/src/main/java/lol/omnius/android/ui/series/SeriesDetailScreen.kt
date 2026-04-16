@@ -62,7 +62,8 @@ class SeriesDetailViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                val response = ApiClient.getApi().getSeriesDetails(seriesId)
+                val api = ApiClient.getApi()
+                val response = api.getSeriesDetails(seriesId)
                 val show = response.data?.series
                 _series.value = show
                 val eps = response.data?.episodes
@@ -70,6 +71,19 @@ class SeriesDetailViewModel : ViewModel() {
                     _episodes.value = eps
                 } else if (show != null && show.totalSeasons > 0) {
                     loadSeason(seriesId, 1)
+                }
+
+                // Auto-refresh in background to get latest episodes + torrents
+                launch {
+                    try {
+                        api.refreshSeries(mapOf("series_id" to seriesId))
+                        // Reload to get updated data
+                        val refreshed = api.getSeriesDetails(seriesId)
+                        val updatedShow = refreshed.data?.series
+                        if (updatedShow != null) _series.value = updatedShow
+                        val updatedEps = refreshed.data?.episodes
+                        if (!updatedEps.isNullOrEmpty()) _episodes.value = updatedEps
+                    } catch (_: Exception) {}
                 }
             } catch (_: Exception) {}
             _isLoading.value = false
@@ -278,32 +292,14 @@ private fun EpisodeRow(
     progressPercent: Float = 0f,
     onPlay: (hash: String, fileIndex: Int?) -> Unit,
 ) {
-    var episodeFocused by remember { mutableStateOf(false) }
-    val episodeShape = RoundedCornerShape(8.dp)
-    Surface(
-        onClick = {
-            val torrent = episode.torrents?.maxByOrNull { it.seeds }
-            if (torrent != null) onPlay(torrent.hash, torrent.fileIndex)
-        },
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 4.dp)
-            .onFocusChanged { episodeFocused = it.isFocused }
-            .then(
-                if (episodeFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), episodeShape)
-                else Modifier
-            ),
-        shape = ClickableSurfaceDefaults.shape(shape = episodeShape),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = OmniusSurface,
-            focusedContainerColor = OmniusCard,
-        ),
+            .background(OmniusSurface, RoundedCornerShape(8.dp))
+            .padding(16.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (episode.stillImage != null) {
                 Box {
                     AsyncImage(
@@ -314,7 +310,6 @@ private fun EpisodeRow(
                             .width(120.dp)
                             .height(68.dp),
                     )
-                    // Progress bar on thumbnail
                     if (progressPercent > 0f && !isWatched) {
                         Box(
                             modifier = Modifier
@@ -345,30 +340,57 @@ private fun EpisodeRow(
                     )
                     if (isWatched) {
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "\u2713",
-                            color = OmniusGold,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Text("\u2713", color = OmniusGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (episode.summary != null) {
-                    Text(
-                        text = episode.summary,
-                        color = OmniusTextSecondary,
-                        fontSize = 12.sp,
-                        maxLines = 2,
-                    )
+                    Text(episode.summary, color = OmniusTextSecondary, fontSize = 12.sp, maxLines = 2)
                 }
-                val best = episode.torrents?.maxByOrNull { it.seeds }
-                if (best != null) {
-                    Text(
-                        text = "${best.quality} \u2022 ${best.size} \u2022 ${best.seeds} seeds",
-                        color = OmniusGold,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+            }
+        }
+
+        // Quality torrent buttons
+        val torrents = episode.torrents
+        if (!torrents.isNullOrEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                torrents.sortedByDescending { it.seeds }.forEach { torrent ->
+                    var btnFocused by remember { mutableStateOf(false) }
+                    val btnShape = RoundedCornerShape(6.dp)
+                    Surface(
+                        onClick = {
+                            if (!isStreaming) onPlay(torrent.hash, torrent.fileIndex)
+                        },
+                        modifier = Modifier
+                            .onFocusChanged { btnFocused = it.isFocused }
+                            .then(
+                                if (btnFocused) Modifier.border(BorderStroke(2.dp, OmniusRed), btnShape)
+                                else Modifier
+                            ),
+                        shape = ClickableSurfaceDefaults.shape(shape = btnShape),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f, pressedScale = 1f),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = OmniusCard,
+                            focusedContainerColor = OmniusRed,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = "\u25B6  ${torrent.quality}",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                            )
+                            Text(
+                                text = "${torrent.size} \u2022 ${torrent.seeds} seeds",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 10.sp,
+                            )
+                        }
+                    }
                 }
             }
         }

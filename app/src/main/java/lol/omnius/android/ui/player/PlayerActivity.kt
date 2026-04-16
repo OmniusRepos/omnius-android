@@ -853,13 +853,13 @@ class PlayerActivity : ComponentActivity() {
             options.add(TrackOption("No ${title.lowercase()} tracks available", -1, -1, false))
         }
 
-        // Build the picker UI
-        val container = LinearLayout(this).apply {
+        // Build the picker UI with scrollable list
+        val outerContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(48), dp(32), dp(48), dp(32))
         }
 
-        container.addView(TextView(this).apply {
+        outerContainer.addView(TextView(this).apply {
             text = title
             setTextColor(Color.WHITE)
             textSize = 20f
@@ -867,6 +867,15 @@ class PlayerActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { bottomMargin = dp(16) })
+
+        // Scrollable list of track options
+        val scrollView = android.widget.ScrollView(this).apply {
+            isFocusable = false
+            isVerticalScrollBarEnabled = true
+        }
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
 
         for ((idx, opt) in options.withIndex()) {
             val item = TextView(this).apply {
@@ -884,13 +893,17 @@ class PlayerActivity : ComponentActivity() {
                     (v.background as? GradientDrawable)?.setColor(
                         if (hasFocus) Color.parseColor("#33FFFFFF") else Color.TRANSPARENT
                     )
+                    // Auto-scroll to focused item
+                    if (hasFocus) {
+                        scrollView.post { scrollView.smoothScrollTo(0, v.top - dp(40)) }
+                    }
                 }
                 setOnClickListener {
                     selectTrack(trackType, opt.groupIndex, opt.trackIndex)
                     dismissTrackPicker()
                 }
             }
-            container.addView(item, LinearLayout.LayoutParams(
+            listContainer.addView(item, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
             // Focus the selected item, or first item if none selected
@@ -899,10 +912,19 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        overlay.addView(container, FrameLayout.LayoutParams(
-            dp(400), FrameLayout.LayoutParams.WRAP_CONTENT,
+        scrollView.addView(listContainer)
+        outerContainer.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f,
+        ))
+
+        overlay.addView(outerContainer, FrameLayout.LayoutParams(
+            dp(400), FrameLayout.LayoutParams.MATCH_PARENT,
             Gravity.CENTER_VERTICAL or Gravity.END,
-        ).apply { marginEnd = dp(48) })
+        ).apply {
+            marginEnd = dp(48)
+            topMargin = dp(32)
+            bottomMargin = dp(32)
+        })
 
         overlay.visibility = View.VISIBLE
         hideControls()
@@ -976,15 +998,30 @@ class PlayerActivity : ComponentActivity() {
                 scheduleHideControls()
                 return super.onKeyDown(keyCode, event)
             }
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (!controlsVisible) {
                     showControls()
-                    controlsPlayIcon?.requestFocus()
+                    controlsSeekBar?.requestFocus()
                     return true
                 }
-                // Controls visible — let system move focus between buttons
+                // Seek back 10 seconds
+                val pos = player?.currentPosition ?: 0
+                playerSeekTo((pos - 10_000).coerceAtLeast(0))
                 scheduleHideControls()
-                return super.onKeyDown(keyCode, event)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (!controlsVisible) {
+                    showControls()
+                    controlsSeekBar?.requestFocus()
+                    return true
+                }
+                // Seek forward 10 seconds
+                val pos = player?.currentPosition ?: 0
+                val dur = player?.duration ?: Long.MAX_VALUE
+                playerSeekTo((pos + 10_000).coerceAtMost(dur))
+                scheduleHideControls()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (controlsVisible) { hideControls(); return true }

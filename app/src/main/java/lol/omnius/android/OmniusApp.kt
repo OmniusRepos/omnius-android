@@ -6,6 +6,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import lol.omnius.android.data.FavoritesManager
+import lol.omnius.android.data.ServerManager
 import lol.omnius.android.data.WatchHistoryManager
 import lol.omnius.android.torrent.TorrentStreamManager
 
@@ -13,6 +14,7 @@ class OmniusApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        ServerManager.initialize(this)
         TorrentStreamManager.initialize(this)
         FavoritesManager.initialize(this)
         WatchHistoryManager.initialize(this)

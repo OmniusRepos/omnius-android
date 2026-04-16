@@ -364,6 +364,69 @@ data class SearchData(
     val channels: List<Channel>? = null,
 )
 
+// --- IMDB Search ---
+
+@Serializable
+data class IMDBSearchResponse(
+    val titles: List<IMDBTitle> = emptyList(),
+)
+
+@Serializable
+data class IMDBTitle(
+    val id: String = "",
+    val type: String = "",
+    val primaryTitle: String = "",
+    val primaryImage: IMDBImage? = null,
+    val startYear: Int = 0,
+    val endYear: Int? = null,
+    val rating: IMDBRating? = null,
+)
+
+@Serializable
+data class IMDBImage(
+    val url: String = "",
+)
+
+@Serializable
+data class IMDBRating(
+    val aggregateRating: Double = 0.0,
+    val voteCount: Int = 0,
+)
+
+// --- Sync ---
+
+@Serializable
+data class SyncResponse(
+    val status: String = "",
+    @SerialName("status_message") val statusMessage: String = "",
+    val data: SyncData? = null,
+)
+
+@Serializable
+data class SyncData(
+    val synced: Boolean = false,
+    val exists: Boolean = false,
+    val id: Int? = null,
+    @SerialName("movie_id") val movieId: Int? = null,
+    @SerialName("series_id") val seriesId: Int? = null,
+    val movie: Movie? = null,
+    val series: Series? = null,
+)
+
+@Serializable
+data class RefreshResponse(
+    val status: String = "",
+    @SerialName("status_message") val statusMessage: String = "",
+    val data: RefreshData? = null,
+)
+
+@Serializable
+data class RefreshData(
+    val refreshed: Boolean = false,
+    val movie: Movie? = null,
+    val series: Series? = null,
+)
+
 // --- Config ---
 
 @Serializable

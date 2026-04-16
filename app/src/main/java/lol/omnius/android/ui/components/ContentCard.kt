@@ -28,7 +28,7 @@ import lol.omnius.android.ui.theme.OmniusRed
 @Composable
 fun ContentCard(
     title: String,
-    imageUrl: String,
+    imageUrl: String?,
     rating: Double? = null,
     year: Int? = null,
     onClick: () -> Unit,
@@ -37,6 +37,7 @@ fun ContentCard(
     aspectRatio: Float = 2f / 3f,
     onLongClick: (() -> Unit)? = null,
     isFavorite: Boolean = false,
+    badge: String? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
@@ -81,6 +82,21 @@ fun ContentCard(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(6.dp),
+                    )
+                }
+
+                // Badge (e.g. "IMDB" for external results)
+                if (badge != null) {
+                    Text(
+                        text = badge,
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(6.dp)
+                            .background(Color(0xCCF59E0B), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
 

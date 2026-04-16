@@ -100,6 +100,35 @@ interface OmniusApi {
         @Query("limit") limit: Int = 20,
     ): SearchResponse
 
+    // --- IMDB ---
+
+    @GET("admin/api/imdb/search")
+    suspend fun searchIMDB(
+        @Query("query") query: String,
+    ): IMDBSearchResponse
+
+    // --- Sync & Refresh ---
+
+    @POST("api/v2/sync_movie")
+    suspend fun syncMovie(
+        @Body body: Map<String, String>,
+    ): SyncResponse
+
+    @POST("api/v2/sync_series")
+    suspend fun syncSeries(
+        @Body body: Map<String, String>,
+    ): SyncResponse
+
+    @POST("api/v2/refresh_movie")
+    suspend fun refreshMovie(
+        @Body body: Map<String, Int>,
+    ): RefreshResponse
+
+    @POST("api/v2/refresh_series")
+    suspend fun refreshSeries(
+        @Body body: Map<String, Int>,
+    ): RefreshResponse
+
     // --- Config ---
 
     @GET("api/v2/config.json")

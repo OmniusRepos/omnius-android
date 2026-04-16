@@ -8,10 +8,18 @@ import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
 import lol.omnius.android.data.model.Movie
 
+enum class SortOption(val label: String, val apiValue: String, val order: String = "desc") {
+    TRENDING("Trending", "download_count"),
+    TOP_RATED("Top Rated", "rating"),
+    LATEST("Latest", "date_added"),
+    YEAR("Year", "year"),
+}
+
 data class MovieBrowseState(
     val isLoading: Boolean = true,
     val movies: List<Movie> = emptyList(),
     val selectedGenre: String? = null,
+    val selectedSort: SortOption = SortOption.TRENDING,
     val page: Int = 1,
     val hasMore: Boolean = true,
     val error: String? = null,
@@ -47,8 +55,9 @@ class MovieBrowseViewModel : ViewModel() {
                 val response = ApiClient.getApi().listMovies(
                     limit = 20,
                     page = page,
-                    genre = currentState.selectedGenre,
-                    sortBy = "download_count",
+                    genre = _state.value.selectedGenre,
+                    sortBy = _state.value.selectedSort.apiValue,
+                    orderBy = _state.value.selectedSort.order,
                 )
                 val newMovies = response.data?.movies ?: emptyList()
 
@@ -69,6 +78,11 @@ class MovieBrowseViewModel : ViewModel() {
 
     fun selectGenre(genre: String?) {
         _state.value = _state.value.copy(selectedGenre = genre)
+        loadMovies(reset = true)
+    }
+
+    fun selectSort(sort: SortOption) {
+        _state.value = _state.value.copy(selectedSort = sort)
         loadMovies(reset = true)
     }
 
