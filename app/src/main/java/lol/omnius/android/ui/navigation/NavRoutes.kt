@@ -8,6 +8,7 @@ object NavRoutes {
     const val SERIES_DETAIL = "series/{seriesId}"
     const val LIVE = "live"
     const val LIVE_COUNTRY = "live/country/{countryCode}"
+    const val LIVE_CATEGORY = "live/category/{categoryId}"
     const val SEARCH = "search"
     const val FAVORITES = "favorites"
     const val SETTINGS = "settings"
@@ -15,6 +16,7 @@ object NavRoutes {
     fun movieDetail(movieId: Int) = "movies/$movieId"
     fun seriesDetail(seriesId: Int) = "series/$seriesId"
     fun liveCountry(countryCode: String) = "live/country/$countryCode"
+    fun liveCategory(categoryId: String) = "live/category/$categoryId"
 }
 
 enum class SidebarItem(val route: String, val label: String) {

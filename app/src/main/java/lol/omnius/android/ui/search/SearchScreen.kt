@@ -24,12 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.omnius.android.api.ApiClient
-import lol.omnius.android.data.model.Movie
-import lol.omnius.android.data.model.Series
-import lol.omnius.android.data.model.IMDBTitle
 import lol.omnius.android.ui.components.ContentCard
 import lol.omnius.android.ui.movies.FilterChip
-import lol.omnius.android.ui.theme.OmniusRed
 import lol.omnius.android.ui.theme.OmniusSurface
 
 enum class SearchTab(val label: String) {
@@ -127,7 +123,6 @@ class SearchViewModel : ViewModel() {
         _tab.value = t
     }
 
-    // Sync an IMDB result to the library, returns the local ID
     fun syncAndOpen(result: SearchResult, onMovieReady: (Int) -> Unit, onSeriesReady: (Int) -> Unit) {
         viewModelScope.launch {
             _syncingId.value = result.imdbId
@@ -137,7 +132,6 @@ class SearchViewModel : ViewModel() {
                     val response = api.syncMovie(mapOf("imdb_code" to result.imdbId))
                     val movieId = response.data?.id ?: response.data?.movieId
                     if (movieId != null) {
-                        // Refresh to get torrents
                         try { api.refreshMovie(mapOf("movie_id" to movieId)) } catch (_: Exception) {}
                         onMovieReady(movieId)
                     }
@@ -145,7 +139,6 @@ class SearchViewModel : ViewModel() {
                     val response = api.syncSeries(mapOf("imdb_code" to result.imdbId))
                     val seriesId = response.data?.id ?: response.data?.seriesId
                     if (seriesId != null) {
-                        // Refresh to get episodes + torrents
                         try { api.refreshSeries(mapOf("series_id" to seriesId)) } catch (_: Exception) {}
                         onSeriesReady(seriesId)
                     }
@@ -172,12 +165,6 @@ fun SearchScreen(
     val movieResults = results.filter { it.type == "movie" }
     val seriesResults = results.filter { it.type != "movie" }
     val hasResults = results.isNotEmpty()
-
-    val filteredResults = when (tab) {
-        SearchTab.ALL -> results
-        SearchTab.MOVIES -> movieResults
-        SearchTab.SERIES -> seriesResults
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -214,7 +201,6 @@ fun SearchScreen(
             )
         }
 
-        // Tab chips
         if (hasResults) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
