@@ -1,6 +1,8 @@
 package lol.omnius.android.ui.series
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +19,8 @@ import androidx.tv.foundation.lazy.grid.items
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -28,6 +32,7 @@ import lol.omnius.android.ui.components.ContentCard
 import lol.omnius.android.ui.components.FavoriteDialog
 import lol.omnius.android.ui.movies.FilterChip
 import lol.omnius.android.ui.theme.OmniusRed
+import lol.omnius.android.ui.theme.OmniusSurface
 
 enum class SeriesSortOption(val label: String, val apiValue: String, val order: String = "desc") {
     TOP_RATED("Top Rated", "rating"),
@@ -46,6 +51,7 @@ data class SeriesBrowseState(
     val series: List<Series> = emptyList(),
     val selectedGenre: String? = null,
     val selectedSort: SeriesSortOption = SeriesSortOption.TOP_RATED,
+    val query: String = "",
     val page: Int = 1,
     val hasMore: Boolean = true,
     val error: String? = null,
@@ -54,6 +60,8 @@ data class SeriesBrowseState(
 class SeriesBrowseViewModel : ViewModel() {
     private val _state = MutableStateFlow(SeriesBrowseState())
     val state = _state.asStateFlow()
+
+    private var searchJob: Job? = null
 
     init {
         loadSeries()
@@ -80,6 +88,7 @@ class SeriesBrowseViewModel : ViewModel() {
                     sortBy = sort.apiValue,
                     orderBy = sort.order,
                     status = if (sort == SeriesSortOption.ONGOING) "Continuing" else null,
+                    queryTerm = _state.value.query.trim().takeIf { it.isNotEmpty() },
                 )
                 val newSeries = response.data?.series ?: emptyList()
 
@@ -106,6 +115,15 @@ class SeriesBrowseViewModel : ViewModel() {
     fun selectSort(sort: SeriesSortOption) {
         _state.value = _state.value.copy(selectedSort = sort)
         loadSeries(reset = true)
+    }
+
+    fun updateQuery(q: String) {
+        _state.value = _state.value.copy(query = q)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(400)
+            loadSeries(reset = true)
+        }
     }
 
     fun loadMore() {
@@ -142,6 +160,32 @@ fun SeriesBrowseScreen(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
         )
+
+        // Search input
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .background(OmniusSurface, RoundedCornerShape(8.dp)),
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = state.query,
+                onValueChange = { viewModel.updateQuery(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = 14.sp,
+                ),
+                decorationBox = { innerTextField ->
+                    if (state.query.isEmpty()) {
+                        Text("Search TV series (EZTV)…", color = Color(0xFF666666), fontSize = 14.sp)
+                    }
+                    innerTextField()
+                },
+            )
+        }
 
         // Sort chips
         TvLazyRow(

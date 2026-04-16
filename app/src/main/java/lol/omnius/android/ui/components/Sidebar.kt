@@ -134,7 +134,6 @@ private fun SidebarNavItem(
         ) {
             val icon: ImageVector = when (item) {
                 SidebarItem.HOME -> Icons.Filled.Home
-                SidebarItem.SEARCH -> Icons.Filled.Search
                 SidebarItem.MOVIES -> Icons.Rounded.Movie
                 SidebarItem.SERIES -> Icons.Rounded.Tv
                 SidebarItem.LIVE -> Icons.Rounded.LiveTv

@@ -19,6 +19,12 @@ interface OmniusApi {
         @Query("year") year: Int? = null,
     ): MovieListResponse
 
+    @GET("api/v2/search_online.json")
+    suspend fun searchMoviesOnline(
+        @Query("query_term") queryTerm: String,
+        @Query("limit") limit: Int = 20,
+    ): MovieListResponse
+
     @GET("api/v2/movie_details.json")
     suspend fun getMovieDetails(
         @Query("movie_id") movieId: Int,
@@ -49,6 +55,12 @@ interface OmniusApi {
         @Query("query_term") queryTerm: String? = null,
         @Query("status") status: String? = null,
         @Query("network") network: String? = null,
+    ): SeriesListResponse
+
+    @GET("api/v2/search_series_online.json")
+    suspend fun searchSeriesOnline(
+        @Query("query_term") queryTerm: String,
+        @Query("limit") limit: Int = 20,
     ): SeriesListResponse
 
     @GET("api/v2/series_details.json")
@@ -92,32 +104,7 @@ interface OmniusApi {
     @GET("api/v2/home.json")
     suspend fun getHomeData(): HomeResponse
 
-    // --- Search ---
-
-    @GET("api/v2/search.json")
-    suspend fun unifiedSearch(
-        @Query("query") query: String,
-        @Query("limit") limit: Int = 20,
-    ): SearchResponse
-
-    // --- IMDB ---
-
-    @GET("admin/api/imdb/search")
-    suspend fun searchIMDB(
-        @Query("query") query: String,
-    ): IMDBSearchResponse
-
-    // --- Sync & Refresh ---
-
-    @POST("api/v2/sync_movie")
-    suspend fun syncMovie(
-        @Body body: Map<String, String>,
-    ): SyncResponse
-
-    @POST("api/v2/sync_series")
-    suspend fun syncSeries(
-        @Body body: Map<String, String>,
-    ): SyncResponse
+    // --- Refresh (used by detail screens to pull fresh torrents) ---
 
     @POST("api/v2/refresh_movie")
     suspend fun refreshMovie(

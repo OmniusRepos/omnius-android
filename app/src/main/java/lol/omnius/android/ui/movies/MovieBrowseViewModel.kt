@@ -2,6 +2,8 @@ package lol.omnius.android.ui.movies
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -20,6 +22,7 @@ data class MovieBrowseState(
     val movies: List<Movie> = emptyList(),
     val selectedGenre: String? = null,
     val selectedSort: SortOption = SortOption.TRENDING,
+    val query: String = "",
     val page: Int = 1,
     val hasMore: Boolean = true,
     val error: String? = null,
@@ -34,6 +37,8 @@ val MOVIE_GENRES = listOf(
 class MovieBrowseViewModel : ViewModel() {
     private val _state = MutableStateFlow(MovieBrowseState())
     val state = _state.asStateFlow()
+
+    private var searchJob: Job? = null
 
     init {
         loadMovies()
@@ -58,6 +63,7 @@ class MovieBrowseViewModel : ViewModel() {
                     genre = _state.value.selectedGenre,
                     sortBy = _state.value.selectedSort.apiValue,
                     orderBy = _state.value.selectedSort.order,
+                    queryTerm = _state.value.query.trim().takeIf { it.isNotEmpty() },
                 )
                 val newMovies = response.data?.movies ?: emptyList()
 
@@ -84,6 +90,15 @@ class MovieBrowseViewModel : ViewModel() {
     fun selectSort(sort: SortOption) {
         _state.value = _state.value.copy(selectedSort = sort)
         loadMovies(reset = true)
+    }
+
+    fun updateQuery(q: String) {
+        _state.value = _state.value.copy(query = q)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(400)
+            loadMovies(reset = true)
+        }
     }
 
     fun loadMore() {

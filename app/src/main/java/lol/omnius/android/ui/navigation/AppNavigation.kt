@@ -16,7 +16,6 @@ import lol.omnius.android.ui.series.SeriesDetailScreen
 import lol.omnius.android.ui.live.LiveBrowseScreen
 import lol.omnius.android.ui.live.LiveCategoryScreen
 import lol.omnius.android.ui.live.LiveCountryScreen
-import lol.omnius.android.ui.search.SearchScreen
 import lol.omnius.android.ui.favorites.FavoritesScreen
 import lol.omnius.android.ui.settings.SettingsScreen
 import lol.omnius.android.data.model.Channel
@@ -153,13 +152,6 @@ fun AppNavGraph(navController: NavHostController) {
                 categoryId = id,
                 onBack = { navController.popBackStack() },
                 onChannelPlay = { channels, index -> launchLivePlayer(channels, index) },
-            )
-        }
-
-        composable(NavRoutes.SEARCH) {
-            SearchScreen(
-                onMovieClick = { navController.navigate(NavRoutes.movieDetail(it)) },
-                onSeriesClick = { navController.navigate(NavRoutes.seriesDetail(it)) },
             )
         }
 

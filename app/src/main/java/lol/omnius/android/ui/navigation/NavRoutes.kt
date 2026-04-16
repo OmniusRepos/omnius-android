@@ -9,7 +9,6 @@ object NavRoutes {
     const val LIVE = "live"
     const val LIVE_COUNTRY = "live/country/{countryCode}"
     const val LIVE_CATEGORY = "live/category/{categoryId}"
-    const val SEARCH = "search"
     const val FAVORITES = "favorites"
     const val SETTINGS = "settings"
 
@@ -21,7 +20,6 @@ object NavRoutes {
 
 enum class SidebarItem(val route: String, val label: String) {
     HOME(NavRoutes.HOME, "Home"),
-    SEARCH(NavRoutes.SEARCH, "Search"),
     MOVIES(NavRoutes.MOVIES, "Movies"),
     SERIES(NavRoutes.SERIES, "TV Series"),
     LIVE(NavRoutes.LIVE, "Live TV"),

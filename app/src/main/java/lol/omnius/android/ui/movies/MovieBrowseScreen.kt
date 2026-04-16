@@ -1,6 +1,7 @@
 package lol.omnius.android.ui.movies
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,6 +55,32 @@ fun MovieBrowseScreen(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
         )
+
+        // Search input
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .background(OmniusSurface, RoundedCornerShape(8.dp)),
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = state.query,
+                onValueChange = { viewModel.updateQuery(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = 14.sp,
+                ),
+                decorationBox = { innerTextField ->
+                    if (state.query.isEmpty()) {
+                        Text("Search movies (YTS)…", color = Color(0xFF666666), fontSize = 14.sp)
+                    }
+                    innerTextField()
+                },
+            )
+        }
 
         // Sort chips
         TvLazyRow(
